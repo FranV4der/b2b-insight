@@ -486,3 +486,11 @@ canal de compra y el precio dependen del **tipo de cliente registrado**:
 #### Changed
 - `src/types/quote.ts` — nueva vista `'quotes'`; `src/services/api.ts` — `GetProductsParams.featured`, `CreateProductData.featured`, `updateQuoteStatus()`.
 - Botón "Repetir pedido" oculto para el rol `empresa` en el detalle de pedido.
+
+#### Despliegue MVP (preparación)
+- `vercel.json` — rewrites `/api/*` y `/uploads/*` hacia el backend de Railway (reemplazar `REEMPLAZAR-CON-TU-DOMINIO.up.railway.app` por el dominio real).
+- `backend/src/routes/mercadopublico.ts` — proxy de Mercado Público en Express: `GET /api/mp/licitaciones.json` consulta la API pública con `MERCADO_PUBLICO_TICKET` server-side (503 con mensaje amigable si no hay ticket o el servicio falla).
+- `engines.node: >=22.12.0` en `package.json` (front y backend) para fijar Node 22 en Vercel/Nixpacks.
+- Correcciones: `CartView` enviaba `userType` con vocabulario equivocado (`general`/`mercadopublico`) que el backend rechaza al guardar la cotización → ahora mapea a `chilecompra`/`convenio-marco` según el canal; `ProductDetailView` ahora pide el producto completo (`GET /products/:id`) para mostrar todas las imágenes.
+- `AGENTS.md` — sección "Despliegue MVP (Vercel + Railway)" con pasos para GitHub, Railway (Postgres, volumen en `backend/uploads`, migración y usuarios) y Vercel (rewrites).
+- Repo Git inicializado (rama `main`, primer commit) con `backend/uploads/` versionado para que el demo conserve imágenes; `.env`, `*.pid` y `backend/drizzle` ignorados.

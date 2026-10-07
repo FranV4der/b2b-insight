@@ -146,8 +146,9 @@ Frontend (Vercel)              Backend (Railway)              PostgreSQL (Railwa
 
 ## Mercado Público API
 
-- Proxy en Vite: `/api/mp/*` → `api.mercadopublico.cl/servicios/v1/publico`
-- Ticket inyectado server-side (nunca expuesto al cliente)
+- Dev: proxy en Vite `/api/mp/*` → `api.mercadopublico.cl/servicios/v1/publico` con ticket inyectado server-side
+- Producción: el mismo `/api/mp/*` lo reescribe Vercel hacia el backend, que lo proxya a la API pública con el ticket en `MERCADO_PUBLICO_TICKET` (`backend/src/routes/mercadopublico.ts`)
+- Ticket nunca expuesto al cliente
 - Servicio: `src/services/mercadopublico.ts` → `getLicitacionByCode(codigo)`
 - Componente: `src/components/LicitacionInfo.tsx` muestra datos de la licitación
 
@@ -155,20 +156,58 @@ Frontend (Vercel)              Backend (Railway)              PostgreSQL (Railwa
 
 ### Frontend (`.env`)
 
-- `API_BASE_URL` → URL del backend (default: `http://localhost:3001`)
-- `MERCADO_PUBLICO_TICKET` → Ticket de API de Mercado Público
+- `API_BASE_URL` → URL del backend para el proxy de desarrollo (default: `http://localhost:3001`)
+- `MERCADO_PUBLICO_TICKET` → Ticket de API de Mercado Público (lo inyecta el proxy de Vite en dev)
 
 ### Backend (`.env`)
 
 - `DATABASE_URL` → Connection string de PostgreSQL
 - `JWT_SECRET` → Secreto de firma de los tokens de sesión (obligatorio). Generar con `openssl rand -base64 48`. Rotarlo invalida todos los tokens emitidos
 - `PORT` → Puerto del servidor (default: 3001)
-- `CORS_ORIGIN` → Origen permitido (default: `http://localhost:5173`)
+- `CORS_ORIGIN` → Origen permitido, separado por comas (default: `http://localhost:5173`; en producción, el dominio de Vercel)
+- `MERCADO_PUBLICO_TICKET` → Ticket de API de Mercado Público (obligatorio en producción; el backend actúa de proxy vía `backend/src/routes/mercadopublico.ts`)
 - `SMTP_HOST` → Host SMTP (opcional; sin este valor las notificaciones quedan solo in-app)
 - `SMTP_PORT` → Puerto SMTP (default: 587)
 - `SMTP_SECURE` → `true`/`false` (TLS)
 - `SMTP_USER` / `SMTP_PASS` → Credenciales SMTP (opcional, permite envío sin auth)
 - `SMTP_FROM` → Remitente (default: `no-reply@insightb2b.cl`)
+
+## Despliegue MVP (Vercel + Railway)
+
+El frontend se sirve desde **Vercel** y el backend desde **Railway**. En producción no existe el proxy de Vite: Vercel reescribe `/api/*` y `/uploads/*` hacia el backend (ver `vercel.json`), y el backend incluye el proxy de **Mercado Público** (`/api/mp`) con el ticket server-side.
+
+### 1. Repositorio
+El proyecto está listo como repo Git (rama `main`). Crear el repo en GitHub y subirlo:
+```sh
+git push -u origin main
+```
+
+### 2. Railway (backend)
+1. Nuevo proyecto Railway → "Deploy from GitHub repo" → elegir **backend/** como root.
+2. `railway.json` ya está configurado (nixpacks, `npm start`, healthcheck `/api/health`).
+3. Añadir **PostgreSQL** y copiar la internal/privat URL a `DATABASE_URL`.
+4. Variables: `CORS_ORIGIN=https://<tu-app>.vercel.app`, `JWT_SECRET` (`openssl rand -base64 48`), `MERCADO_PUBLICO_TICKET`, y opcionalmente SMTP_*. `PORT` lo asigna Railway.
+5. **Persistencia (obligatorio)**: montar un **Volume** en `backend/uploads` para que imágenes/documentos/logos no se pierdan en cada deploy.
+6. Una vez levantado, **migrar la BD y crear usuarios** (una sola vez, apuntando a la BD de Railway):
+   ```sh
+   cd backend
+   set -a; . ./.env; set +a      # o exportar DATABASE_URL de Railway
+   npm run db:push               # crea las tablas
+   npm run create:admin -- admin@tuempresa.cl <pass> "Admin"
+   npm run create:company -- --name "IMEX ESTADO" --rut "96.185.309-7" --admin-email admin@imex.cl --admin-password <pass>
+   ```
+7. Copiar el dominio de producción (ej. `https://backendname.up.railway.app`) y probar `/api/health`.
+
+### 3. Vercel (frontend)
+1. Importar el repo → Framework **Vite**, build `npm run build`, output `dist`. Node 22 (fijado por `engines`).
+2. Sin variables si se usan rewrites.
+3. **Editar `vercel.json`**: reemplazar `REEMPLAZAR-CON-TU-DOMINIO.up.railway.app` por el dominio de producción de Railway (aparece en 2 sitios).
+4. Deployar y probar: catalog, login empresa/admin, subir imagen (se guarda en el volume), generar cotización PDF y consulta de licitación.
+
+### Notas de producción
+- Los adjuntos viven en disco (`backend/uploads/`): el volumen de Railway persiste entre deploys; mover a S3/R2 si se escala.
+- El ticket de Mercado Público nunca se expone al frontend (proxy server-side).
+- `db:push` solo corre manualmente; el build de Railway **no** migra.
 
 ## Modelo de Negocio: Vendedor vs Comprador
 
