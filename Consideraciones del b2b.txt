@@ -1,0 +1,233 @@
+1. La empresa IMEX ESTADO es la empresa vendedora de productos
+2. La empresa debe tener un usuario administrador que es independiente al SuperAdmin. El administrador de empresa puede gestionar toda la informacion de un empresa.
+3. La empresa puede tener varias listas de precios asociadas a clientes. una general y otras especificas para clientes. Dependiendo del cliente es la lista de precio que mostrara.
+4. La empresa puede registrar sus clientes para asignarle la lista de precio correspondiente.
+5. La empresa puede cargar su productos en forma individual a traves de un gestor de productos o por carga masiva desde un archivo excel.
+6. Los usuarios compradores no podran ver precios hasta que inicien su sesion con nombre de usuario y contrasaña asignada por la empresa
+7. Los productos deben tener un SKU, nombre, descripcion larga, descripcion corta, dimensiones (Largo, ancho y alto), foto principal, fotos adicionales o galeria.
+8. Al final del proceso debe generar una orden de compra no una venta.
+9. Cada cliente debe tener una linea de credito y condicion de pago (30, 60, 90 dias).
+10 Los clientes deben tene runa direccion de envio y una de facturacion.
+11. debe mostrar los precios netos y con iva.
+12. Formulario simple en el sitio para ingresar directamente el código de producto y la cantidad sin pasar por la navegación del catálogo.
+13. Poder descargar en un archivo PFD la cotizacion creada.
+14. Buscador Avanzado e Intuitivo: Motor de búsqueda con filtros técnicos complejos (atributos, compatibilidades, especificaciones) e integración de autocompletado.
+15. Gestión de Muestras y Fichas Técnicas: Descarga de hojas de seguridad, manuales y fichas técnicas en PDF
+
+
+Consideraciones Generales.
+
+1. Gestión de Cuentas Empresa (Estructura Organizacional)
+Jerarquía y Roles de Usuario: Opción para que una empresa cree una cuenta matriz y administre múltiples usuarios (ej. Comprador, Jefe de Adquisiciones, Finanzas).
+
+Flujos de Aprobación Interna: Configuración de límites de gasto por usuario o departamento. Si un pedido supera el límite, la plataforma envía una notificación automática al aprobador para autorizar la orden.
+
+Líneas de Crédito y Métodos de Pago B2B: Control del cupo de crédito otorgado por la empresa, pago a 30/60/90 días, transferencia bancaria, pago contra factura u orden de compra (OC).
+
+Gestión de Direcciones Múltiples: Capacidad de enviar distintas partes de una misma orden a diferentes sucursales o plantas de la empresa.
+
+2. Precios y Catálogos Personalizados
+Listas de Precios Segmentadas: Muestra de precios específicos por cliente, categoría de cuenta, volumen o contrato previamente negociado.
+
+Descuentos por Volumen (Precios Escalonados): Tablas dinámicas que reducen el precio unitario a medida que aumenta la cantidad de unidades agregadas al carro.
+
+Visibilidad de Catálogo Personalizada: Ocultar o mostrar productos o líneas completas según el perfil de la empresa o acuerdos de exclusividad.
+
+Visualización de Precios Neto / IVA: Visualización clara de valores con y sin impuestos aplicados.
+
+3. Eficiencia en la Compra Recurrente
+Carga Masiva de Pedidos (CSV / Excel): Herramienta para subir un archivo con códigos SKUs y cantidades para armar un pedido de cientos de productos en segundos.
+
+Pedido Rápido por SKU: Formulario simple en el sitio para ingresar directamente el código de producto y la cantidad sin pasar por la navegación del catálogo.
+
+Listas de Compra / Plantillas Frecuentes: Opción para guardar listas de insumos periódicos (ej. "Insumos Oficina Mensual") y reordenar con un solo clic.
+
+Programación de Pedidos Recurrentes: Automatización de pedidos automáticos con frecuencia semanal, quincenal o mensual.
+
+4. Cotizaciones y Negociación (RFQ - Request for Quote)
+Solicitud de Cotización desde el Carro: Opción para transformar el carrito de compras en una solicitud de cotización para negociar precio o condiciones especiales con un ejecutivo.
+
+Gestión de Negociación Digital: Panel interactivo donde el cliente y el ejecutivo comercial pueden ajustar precios, revisar márgenes y aprobar/rechazar la oferta dentro del sistema.
+
+Conversión de Cotización a Orden: Generación de un enlace o botón directo para convertir una cotización aprobada en un pedido en firme.
+
+5. Gestión Administrativa y Documental
+Centro de Documentación Fiscal: Descarga directa de facturas, notas de crédito, guías de despacho y estados de cuenta en PDF y XML.
+
+Historial Detallado e Información Consolidada: Registro completo de compras anteriores filtrables por centro de costo, sucursal, comprador o rango de fechas.
+
+Consolidación de Facturación: Opción para agrupar múltiples pedidos del mes en una sola factura consolidada.
+
+6. Experiencia de Usuario y Soporte
+Consultas de Stock Real por Bodega: Información sobre disponibilidad de productos en distintas zonas o almacenes regionales.
+
+Buscador Avanzado e Intuitivo: Motor de búsqueda con filtros técnicos complejos (atributos, compatibilidades, especificaciones) e integración de autocompletado.
+
+Gestión de Muestras y Fichas Técnicas: Descarga de hojas de seguridad, manuales y fichas técnicas en PDF, junto con la opción de solicitar muestras de productos antes de compras masivas.
+
+
+-----------------------------------------------------------------------------------
+
+Punto de vista empresa:
+
+Para que una empresa B2B gestione de manera óptima su catálogo, operaciones, clientes y ventas corporativas, la plataforma debe contar con un **Panel de Administración (Backoffice / CRM / ERP de Comercio)** diseñado específicamente para la complejidad B2B.
+
+A continuación, se detallan las funcionalidades clave divididas por módulos operativos:
+
+---
+
+## 1. Gestión de Clientes, Cuentas e Impersonación (B2B CRM)
+
+* **Estructura Jerárquica de Clientes:**
+* Crear cuentas de empresa (**Empresa Padre**) y asociar múltiples sucursales o razones sociales (**Empresas Hijas**).
+* Asignación de múltiples usuarios por empresa con roles (Aprobador, Comprador, Administrador).
+
+
+* **Evaluación de Crédito y Cobranza:**
+* Asignación de cupo o línea de crédito por cliente y días de plazo de pago (ej. 30, 60, 90 días).
+* Bloqueo automático de pedidos si el cliente tiene facturas vencidas o superó su margen de crédito.
+
+
+* **Asignación de Ejecutivos Comerciales:**
+* Vincular cuentas de clientes a un vendedor o KAM (*Key Account Manager*) específico para asignación de comisiones y seguimiento.
+
+
+* **Módulo de Impersonación ("Comprar como el cliente"):**
+* Permite al ejecutivo de ventas iniciar sesión en el sitio *viendo exactamente la interfaz, catálogo y precios de un cliente en particular* para armarle el carrito, resolver dudas o ingresar una orden en su nombre.
+
+
+
+---
+
+## 2. Gestión de Precios Dinámicos y Contratos
+
+* **Motor de Listas de Precios Múltiples:**
+* Capacidad de crear listas de precios ilimitadas (Lista Base, Lista Mayorista, Lista Clientes VIP, Lista Convenio Marco, etc.) y asignarlas a clientes o grupos de clientes.
+
+
+* **Motor de Reglas de Precios Escalonados (Tiered Pricing):**
+* Configurar tramos de descuento por volumen a nivel de SKU o categoría (ej. 1 a 9 unidades: $10.000 / 10 a 49 unidades: $8.500 / 50+ unidades: $7.000).
+
+
+* **Gestión de Contratos y Acuerdos Especiales:**
+* Asignar precios fijos o porcentajes de descuento específicos por contrato con fecha de inicio y vencimiento.
+
+
+* **Gestión de Impuestos y Monedas:**
+* Mapeo de precios netos e impuestos específicos (IVA, impuestos a bebidas, etc.) y soporte multimoneda (CLP, USD, etc.) si aplica importación/exportación.
+
+
+
+---
+
+## 3. Gestión de Catálogo y Productos Complex B2B (PIM)
+
+* **Atributos Técnicos Avanzados y Fichas Adjuntas:**
+* Soporte para campos personalizados complejos (medidas, voltaje, certificaciones, compatibilidades) y descarga de archivos PDF (fichas técnicas, manuales, hojas de seguridad MSDS).
+
+
+* **Unidades de Medida y Empaque Múltiples:**
+* Configurar venta por unidad, caja, display, pallet o metros, permitiendo establecer cantidades mínimas de pedido (MOQ) y múltiplos de empaque obligatorios.
+
+
+* **Productos Combinados y Kits:**
+* Agrupación de productos (bundles) o kits promocionales/corporativos con descuento automático.
+
+
+* **Sustitutos y Productos Relacionados:**
+* Configuración de productos alternativos para ofrecer automáticamente cuando un SKU no tiene stock.
+
+
+
+---
+
+## 4. Gestión de Inventarios y Bodegas (IMS)
+
+* **Multi-Bodega y Asignación de Stock:**
+* Control de stock distribuido en múltiples centros de distribución o tiendas físicas.
+* Reglas para determinar desde qué bodega se despacha según la ubicación geográfica del cliente o la disponibilidad.
+
+
+* **Stock Reservado vs. Stock Disponible:**
+* Distinguir entre stock físico total, stock reservado (en órdenes en proceso/cotizaciones aprobadas) y stock disponible para venta online.
+
+
+* **Alertas de Reposición y Reglas de Quiebre:**
+* Notificaciones de stock mínimo e integración con órdenes de compra a proveedores.
+* Opción de permitir o prohibir la venta sin stock (*backorders* o venta sobre pedido previo contrato).
+
+
+
+---
+
+## 5. Módulo de Cotizaciones y Negociación comercial (RFQ)
+
+* **Bandeja de Entrada de Solicitudes de Cotización:**
+* Panel donde el equipo comercial recibe las solicitudes enviadas por clientes desde la web.
+
+
+* **Editor Comercial de Cotizaciones:**
+* Permite al vendedor modificar precios, agregar SKUs fuera de catálogo, aplicar descuentos adicionales o ajustar costos de flete antes de responder al cliente.
+
+
+* **Control de Validez y Conversión:**
+* Configurar vigencia de la cotización (ej. 7 o 15 días) y convertir automáticamente la cotización aceptada en orden de compra sin reingreso manual de datos.
+
+
+
+---
+
+## 6. Módulo de Aprobaciones y Flujos de Trabajo (Workflow Engine)
+
+* **Configurador de Reglas de Aprobación Interna:**
+* Definir criterios para que una orden requiera aprobación del área de Riesgo/Créditos (ej. pedidos que excedan el cupo o requieran facturación especial) o del Gerente Comercial (ej. pedidos con descuentos superiores al 20%).
+
+
+
+---
+
+## 7. Integraciones Técnicas y Automatización (APIs & Middleware)
+
+* **Conector Bidireccional con ERP:**
+* Sync en tiempo real o por lotes de:
+* **ERP $\rightarrow$ Web:** Stock, listas de precios, maestros de productos, estados de cuenta.
+* **Web $\rightarrow$ ERP:** Órdenes de compra creadas, nuevos clientes, solicitudes de facturación.
+
+
+
+
+* **Integración con WMS / Logística:**
+* Conexión con sistemas de gestión de almacén para la emisión automática de listas de picking/packing y generación de etiquetas con couriers o flota propia.
+
+
+* **Soporte para PunchOut / EDI:**
+* Módulos de comunicación para traducir catálogos y órdenes a formatos cXML o EDI (Electronic Data Interchange) para grandes clientes corporativos.
+
+
+
+---
+
+## 8. Reportes, Analítica y Control de Desempeño
+
+* **Dashboard Comercial B2B:**
+* Indicadores clave (KPIs) como: Ticket promedio corporativo, tasa de conversión de cotizaciones a ventas, recurrentes vs. nuevos clientes, volumen por categoría.
+
+
+* **Análisis de Crédito y Cartera:**
+* Reporte de saldos por cobrar, facturas pendientes, uso de líneas de crédito por empresa.
+
+
+* **Rendimiento por Ejecutivo de Ventas:**
+* Seguimiento de metas, ventas generadas por canal (asistida vs. autogestionada por la web) y cotizaciones gestionadas.
+
+
+
+---
+
+### Un ejemplo del flujo integrado B2B:
+
+1. Un cliente entra a la plataforma e **inicia sesión con su cuenta corporativa**.
+2. El sistema reconoce a la empresa y le despliega únicamente su **lista de precios negociada**, sus **condiciones de pago a 60 días** y el stock de la **bodega regional más cercana**.
+3. El cliente carga 500 unidades mediante un archivo Excel (**Carga Masiva**).
+4. Como el monto supera el límite del comprador, el pedido queda en estado **"Pendiente de Aprobación Interna"** e informa al Jefe de Compras del cliente.
+5. Una vez aprobado por el cliente, el sistema valida que el cupo de crédito esté disponible y transmite automáticamente la orden al **ERP/WMS de la empresa vendedora** para su facturación y despachado.
