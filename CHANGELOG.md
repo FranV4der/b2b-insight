@@ -577,3 +577,7 @@ Las listas de precio ya no requieren alta de ítems uno a uno: se sube un Excel 
 - Estilo global para `select` y `textarea` en `index.css` (antes solo `input`): ahora comparten padding, borde y focus + flecha custom, arreglando la apariencia nativa de **todos** los selects de la app (formularios, CustomersManager, ProductForm, filtros de orders/quotes). Overrides de `padding-right` en `.status-select` y `.table-select`.
 - Rediseño del módulo de Listas de Precio (`.pl-*`): **sidebar** de listas como cards seleccionables (badge canal, botón ✕) + **panel de detalle** con `min-width: 0`/`overflow hidden` y secciones separadas (carga masiva, agregar producto, precios). Se corrigió el desbordamiento del uploader sobre la tabla: se quitó `max-width: 720px` fijo y la tabla de precios usa contenedor `overflow-x: auto` (`.pl-table-scroll`). Responsivo a 1 columna en <768px.
 - `PriceListExcelImport.tsx`: dropzone con estado `drag-over`, título/hint estilizados.
+
+#### Gestión de compradores (CustomersManager)
+- Se corrigió el desalineado de inputs: los formularios usaban `<label>` suelto como hijo de `.form-grid` (que es `display: grid`), pero el CSS solo estiliza los inputs dentro de `.form-field`. Ahora todos los campos están envueltos en `<div className="form-field">`, alineados en la grilla.
+- Nuevos estilos base en App.css: `.admin-panel` (columna con gap), `.admin-table` (encabezados uppercase, hover), `.search-input`, `.admin-actions`, `.btn-primary`, `.btn-sm`, y badges de estado de cliente (`.badge-pending/active/suspended`).

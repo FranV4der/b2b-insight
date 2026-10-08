@@ -109,8 +109,8 @@ function PriceListSelects({ value, priceLists, setValue }: PriceListSelectsProps
   const mp = priceLists.filter((p) => p.channel === 'chilecompra')
   return (
     <>
-      <label>
-        Lista normal
+      <div className="form-field">
+        <label>Lista normal</label>
         <select
           value={value.retailPriceListId}
           onChange={(e) => setValue({ retailPriceListId: e.target.value })}
@@ -122,9 +122,9 @@ function PriceListSelects({ value, priceLists, setValue }: PriceListSelectsProps
             </option>
           ))}
         </select>
-      </label>
-      <label>
-        Lista ChileCompra
+      </div>
+      <div className="form-field">
+        <label>Lista ChileCompra</label>
         <select
           value={value.chilecompraPriceListId}
           onChange={(e) => setValue({ chilecompraPriceListId: e.target.value })}
@@ -136,7 +136,7 @@ function PriceListSelects({ value, priceLists, setValue }: PriceListSelectsProps
             </option>
           ))}
         </select>
-      </label>
+      </div>
     </>
   )
 }
@@ -207,60 +207,60 @@ function CustomerRow({
           <td colSpan={8}>
             {error && <p className="form-error">{error}</p>}
             <div className="form-grid">
-              <label>
-                Tipo
+              <div className="form-field">
+                <label>Tipo</label>
                 <select value={f.kind} onChange={set('kind')}>
                   <option value="empresa">Empresa</option>
                   <option value="persona">Persona natural</option>
                 </select>
-              </label>
-              <label>
-                Nombre / Razón social
+              </div>
+              <div className="form-field">
+                <label>Nombre / Razón social</label>
                 <input value={f.name} onChange={set('name')} />
-              </label>
-              <label>
-                RUT
+              </div>
+              <div className="form-field">
+                <label>RUT</label>
                 <input value={f.rut} onChange={set('rut')} placeholder="12345678-5" />
-              </label>
-              <label>
-                Email
+              </div>
+              <div className="form-field">
+                <label>Email</label>
                 <input value={f.email} onChange={set('email')} />
-              </label>
-              <label>
-                Teléfono
+              </div>
+              <div className="form-field">
+                <label>Teléfono</label>
                 <input value={f.phone} onChange={set('phone')} />
-              </label>
-              <label>
-                Dirección
+              </div>
+              <div className="form-field">
+                <label>Dirección</label>
                 <input value={f.address} onChange={set('address')} />
-              </label>
-              <label>
-                Comuna
+              </div>
+              <div className="form-field">
+                <label>Comuna</label>
                 <input value={f.commune} onChange={set('commune')} />
-              </label>
-              <label>
-                Región
+              </div>
+              <div className="form-field">
+                <label>Región</label>
                 <input value={f.region} onChange={set('region')} />
-              </label>
-              <label>
-                Canal de compra
+              </div>
+              <div className="form-field">
+                <label>Canal de compra</label>
                 <select value={f.type} onChange={set('type')}>
                   <option value="normal">Compra normal</option>
                   <option value="chilecompra">ChileCompra</option>
                   <option value="both">Ambos</option>
                 </select>
-              </label>
+              </div>
               <PriceListSelects
                 value={f}
                 priceLists={priceLists}
                 setValue={(updates) => setF((p) => ({ ...p, ...updates }))}
               />
-              <label>
-                Límite de crédito
+              <div className="form-field">
+                <label>Límite de crédito</label>
                 <input value={f.creditLimit} onChange={set('creditLimit')} />
-              </label>
-              <label>
-                Condición de pago
+              </div>
+              <div className="form-field">
+                <label>Condición de pago</label>
                 <select value={f.paymentTerms} onChange={set('paymentTerms')}>
                   <option value="">Sin condición</option>
                   <option value="contado">De contado</option>
@@ -268,31 +268,34 @@ function CustomerRow({
                   <option value="60">60 días</option>
                   <option value="90">90 días</option>
                 </select>
-              </label>
-              <label>
-                Dirección de facturación
+              </div>
+              <div className="form-field">
+                <label>Dirección de facturación</label>
                 <input value={f.billingAddress} onChange={set('billingAddress')} placeholder="Si difiere de la de envío" />
-              </label>
-              <label>
-                Comuna (facturación)
+              </div>
+              <div className="form-field">
+                <label>Comuna (facturación)</label>
                 <input value={f.billingCommune} onChange={set('billingCommune')} />
-              </label>
-              <label>
-                Región (facturación)
+              </div>
+              <div className="form-field">
+                <label>Región (facturación)</label>
                 <input value={f.billingRegion} onChange={set('billingRegion')} />
-              </label>
-              <label>
-                Estado
+              </div>
+              <div className="form-field">
+                <label>Estado</label>
                 <select value={f.status} onChange={set('status')}>
                   <option value="pending">Pendiente</option>
                   <option value="active">Activo</option>
                   <option value="suspended">Suspendido</option>
                 </select>
-              </label>
+              </div>
             </div>
-            <button className="btn-primary" onClick={save} disabled={saving}>
-              {saving ? 'Guardando...' : 'Guardar comprador'}
-            </button>
+            <div className="admin-actions">
+              <button className="btn-primary" onClick={save} disabled={saving}>
+                {saving ? 'Guardando...' : 'Guardar comprador'}
+              </button>
+              <button className="btn-sm" onClick={() => setOpen(false)}>Cancelar</button>
+            </div>
           </td>
         </tr>
       )}
@@ -353,60 +356,60 @@ function NewCustomerForm({
         <div className="user-form" style={{ marginTop: '0.75rem' }}>
           {error && <p className="form-error">{error}</p>}
           <div className="form-grid">
-            <label>
-              Tipo
+            <div className="form-field">
+              <label>Tipo</label>
               <select value={f.kind} onChange={set('kind')}>
                 <option value="empresa">Empresa</option>
                 <option value="persona">Persona natural</option>
               </select>
-            </label>
-            <label>
-              Nombre / Razón social *
+            </div>
+            <div className="form-field">
+              <label>Nombre / Razón social *</label>
               <input value={f.name} onChange={set('name')} />
-            </label>
-            <label>
-              RUT
+            </div>
+            <div className="form-field">
+              <label>RUT</label>
               <input value={f.rut} onChange={set('rut')} placeholder="12345678-5" />
-            </label>
-            <label>
-              Email
+            </div>
+            <div className="form-field">
+              <label>Email</label>
               <input value={f.email} onChange={set('email')} />
-            </label>
-            <label>
-              Teléfono
+            </div>
+            <div className="form-field">
+              <label>Teléfono</label>
               <input value={f.phone} onChange={set('phone')} />
-            </label>
-            <label>
-              Dirección
+            </div>
+            <div className="form-field">
+              <label>Dirección</label>
               <input value={f.address} onChange={set('address')} />
-            </label>
-            <label>
-              Comuna
+            </div>
+            <div className="form-field">
+              <label>Comuna</label>
               <input value={f.commune} onChange={set('commune')} />
-            </label>
-            <label>
-              Región
+            </div>
+            <div className="form-field">
+              <label>Región</label>
               <input value={f.region} onChange={set('region')} />
-            </label>
-            <label>
-              Canal de compra
+            </div>
+            <div className="form-field">
+              <label>Canal de compra</label>
               <select value={f.type} onChange={set('type')}>
                 <option value="normal">Compra normal</option>
                 <option value="chilecompra">ChileCompra</option>
                 <option value="both">Ambos</option>
               </select>
-            </label>
+            </div>
             <PriceListSelects
               value={f}
               priceLists={priceLists}
               setValue={(updates) => setF((p) => ({ ...p, ...updates }))}
             />
-            <label>
-              Límite de crédito
+            <div className="form-field">
+              <label>Límite de crédito</label>
               <input value={f.creditLimit} onChange={set('creditLimit')} />
-            </label>
-            <label>
-              Condición de pago
+            </div>
+            <div className="form-field">
+              <label>Condición de pago</label>
               <select value={f.paymentTerms} onChange={set('paymentTerms')}>
                 <option value="">Sin condición</option>
                 <option value="contado">De contado</option>
@@ -414,19 +417,21 @@ function NewCustomerForm({
                 <option value="60">60 días</option>
                 <option value="90">90 días</option>
               </select>
-            </label>
-            <label>
-              Estado
+            </div>
+            <div className="form-field">
+              <label>Estado</label>
               <select value={f.status} onChange={set('status')}>
                 <option value="pending">Pendiente</option>
                 <option value="active">Activo</option>
                 <option value="suspended">Suspendido</option>
               </select>
-            </label>
+            </div>
           </div>
-          <button className="btn-primary" onClick={create} disabled={saving || !f.name.trim()}>
-            {saving ? 'Creando...' : 'Crear comprador'}
-          </button>
+          <div className="admin-actions">
+            <button className="btn-primary" onClick={create} disabled={saving || !f.name.trim()}>
+              {saving ? 'Creando...' : 'Crear comprador'}
+            </button>
+          </div>
         </div>
       )}
     </div>
