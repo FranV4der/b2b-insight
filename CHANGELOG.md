@@ -514,6 +514,11 @@ canal de compra y el precio dependen del **tipo de cliente registrado**:
 - `CORS_ORIGIN=https://b2b-insight.vercel.app` seteado en Railway y verificado: login con `Origin` → 200, preflight OPTIONS `/api/uploads/company-logo` → 204 con allow-origin.
 - Flujo completo verificado: SPA en `/`, `/api/health` y `/uploads/*` reescritos a Railway, imagen persistida en el volume servida vía rewrite.
 
+#### Seed de datos demo en producción (2026-10-08)
+- La BD de production solo tenía admin + IMEX; el catálogo salía vacío (y un 502 transitorio durante los redeploys automáticos podía leerse como fallo). Se migraron desde la BD local: `brands` (4), `categories` (2), `products` (7, ids 4–10, `company_id=1` IMEX, solo `regular_price`), `product_categories` (7 → "Juegos de Mesa") y `product_images` (18). Se ajustaron las secuencias.
+- Las imágenes/productos demo del repo se copiaron al **volume** en `/app/uploads` (`railway volume files upload`). Nota: el CLI en modo agente no borra archivos ("Refusing: agents cannot delete files") — quedaron directorios espurios `/uploads`, `/images/images`, `/logos/logos`, `/docs/docs`, `/pdfs/pdfs` (inofensivos; borrarlos a mano: `railway volume files delete --volume b2b-insight-volume /uploads --yes`, etc.).
+- Verificado en producción: `GET /api/products` devuelve 7 con imágenes 200 y categorías; detalle con categoría "Juegos de Mesa".
+
 #### Pendiente
 - ~~Importar repo en Vercel + setear CORS_ORIGIN~~ → hecho (ver "Puesta en producción Vercel (2026-10-07)" más abajo).
 - Carga de productos reales de IMEX ESTADO + datos legales y logo; teléfono real para WhatsApp; rotar passwords temporales; verificación visual del PDF en producción; ERP Microsoft Dynamics.
