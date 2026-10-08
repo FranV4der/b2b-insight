@@ -202,8 +202,9 @@ git push -u origin main
 1. Importar el repo → Framework **Vite**, build `npm run build`, output `dist`. Node 22 (fijado por `engines`).
 2. Sin variables si se usan rewrites.
 3. `vercel.json` ya apunta a `https://b2b-insight-production.up.railway.app`.
-4. Deployar y probar: catalog, login empresa/admin, subir imagen (se guarda en el volume), generar cotización PDF y consulta de licitación.
-5. Después del deploy, setear en Railway `CORS_ORIGIN=https://<dominio-vercel>.vercel.app` (los rewrites son same-origin desde el browser, pero el header `Origin` llega igual al backend).
+4. **`backend/` debe quedar fuera del deploy de Vercel**: `.vercelignore` con `backend`, y `vercel.json` SOLO con los rewrites (`/api/*` y `/uploads/*` → Railway). Si Vercel CLI agrega un bloque `services` + rewrite catch-all a `vercel.json` (framework preset "Services"), revertirlo o el deploy compila el backend y sirve 500 en `/`.
+5. Deployar y probar: catalog, login empresa/admin, subir imagen (se guarda en el volume), generar cotización PDF y consulta de licitación.
+6. Setear en Railway `CORS_ORIGIN=https://<dominio-vercel>.vercel.app` (los rewrites son same-origin desde el browser, pero el header `Origin` llega igual al backend y el middleware CORS lo valida).
 
 ### Notas de producción
 - Los adjuntos viven en disco (`backend/uploads/`): el volumen de Railway persiste entre deploys; mover a S3/R2 si se escala.

@@ -508,6 +508,12 @@ canal de compra y el precio dependen del **tipo de cliente registrado**:
 - Con root `backend/`, Railway monta el código en `/app` (cwd `/app`, build `/app/dist`, uploads en `/app/uploads`), NO en `/app/backend`.
 - El volume debe montarse en **`/app/uploads`** (coincide con `RAILWAY_VOLUME_MOUNT_PATH`). Un primer intento en `/app/backend/uploads` hizo que la app siguiera escribiendo en el filesystem efímero y los archivos se perdieran en cada redeploy; se diagnosticó con logs de arranque (`process.cwd()`, `__dirname`, `RAILWAY_VOLUME_MOUNT_PATH`) y se verificó que un upload sobrevive un redeploy completo.
 
+#### Puesta en producción Vercel (2026-10-07)
+- Frontend desplegado en **https://b2b-insight.vercel.app** (proyecto `b2b-insight`, framework Vite, build `npm run build`, output `dist`, Node 22.x).
+- **Trampa "Services"**: al desplegar con preset "Services", Vercel CLI inyecta en `vercel.json` un rewrite catch-all `/(.*) → service backend` + un bloque `services.backend` (root `backend`, entrypoint `src/index.ts`), con lo que Vercel compila el backend y la home responde 500. Fix: revertir `vercel.json` a solo los 2 rewrites y añadir **`.vercelignore` con `backend`** para que Vercel construya solo el frontend.
+- `CORS_ORIGIN=https://b2b-insight.vercel.app` seteado en Railway y verificado: login con `Origin` → 200, preflight OPTIONS `/api/uploads/company-logo` → 204 con allow-origin.
+- Flujo completo verificado: SPA en `/`, `/api/health` y `/uploads/*` reescritos a Railway, imagen persistida en el volume servida vía rewrite.
+
 #### Pendiente
-- Importar repo en **Vercel** (framework Vite, `dist`); tras el deploy, setear en Railway `CORS_ORIGIN=https://<dominio>.vercel.app` (los rewrites son same-origin, pero el header `Origin` llega al backend y el middleware CORS lo exige en la allowlist).
+- ~~Importar repo en Vercel + setear CORS_ORIGIN~~ → hecho (ver "Puesta en producción Vercel (2026-10-07)" más abajo).
 - Carga de productos reales de IMEX ESTADO + datos legales y logo; teléfono real para WhatsApp; rotar passwords temporales; verificación visual del PDF en producción; ERP Microsoft Dynamics.
