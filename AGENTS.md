@@ -127,9 +127,9 @@ Frontend (Vercel)              Backend (Railway)              PostgreSQL (Railwa
 | GET | `/api/companies` | Listar **vendedores** (`admin` ve todos; `empresa` solo el suyo) |
 | POST | `/api/companies` | Crear vendedor (solo `admin`; valida RUT y unicidad de slug) |
 | PUT | `/api/companies/:id` | Editar vendedor (acota por `scopeCompanyId`) |
-| GET | `/api/customers` | Listar **compradores** (con búsqueda; incluye `priceLists: [{id, name, channel}]` por cliente) |
+| GET | `/api/customers` | Listar **compradores** (con búsqueda; incluye `priceLists: [{id, name, channel}]` por cliente; para `empresa` incluye también los no asignados `company_id = NULL`) |
 | POST | `/api/customers` | Crear comprador (solo `admin`; acepta `priceListIds: number[]`) |
-| PUT | `/api/customers/:id` | Editar comprador (tipo, estado, lista de precio, crédito; `priceListIds` reemplaza asignaciones, una lista por canal) |
+| PUT | `/api/customers/:id` | Editar comprador (tipo, estado, lista de precio, crédito; `priceListIds` reemplaza asignaciones, una lista por canal). Para `empresa` también aplica a no asignados y **reclama** el cliente seteando `company_id` |
 | GET | `/api/notifications` | Notificaciones del usuario + contador no leídas |
 | PUT | `/api/notifications/:id/read` | Marcar notificación como leída |
 | PUT | `/api/notifications/read-all` | Marcar todas como leídas |
@@ -227,6 +227,8 @@ git push -u origin main
 
 **Una persona natural puede comprar sin organización**: el registro público crea un `customers` con `kind='persona'` y `users.customer_id` apuntando a él. Un usuario legacy sin `customer_id` sigue pudiendo comprar, pero sin lista de precio ni canal (solo operar sobre sus propios pedidos).
 
+**Ciclo de alta de comprador (Opción B)**: el comprador se **registra solo** (`POST /api/auth/register` o `/api/auth/register-cotizador`), lo que crea el `customers` con `company_id = NULL` (sin vendedor) y su `users` (`cotizador`) con password hasheado, con login automático. Luego la empresa (`empresa`) lo ve en el listado (badge "Auto-registrado"), lo edita y, al guardar, le asigna listas de precio / crédito / condición de pago y lo **reclama** (setea `company_id`). La empresa **no** da de alta compradores directamente (`POST /api/customers` es solo del `admin`).
+
 ## Roles y Permisos
 
 | Rol | Alcance | `company_id` (vendedor) | `customer_id` (comprador) |
@@ -241,7 +243,7 @@ Ambos punteros son **nullable** (`ON DELETE SET NULL`): borrar un vendedor o com
 
 - `scopeCompanyId(auth)` (`backend/src/middleware/auth.ts`) → `null` para `admin`: las queries **omiten** el filtro de vendedor.
 - `scopeCustomerId(auth)` → `null` para `admin` y `empresa`: las queries de comprador **omiten** el filtro solo para `admin`; para `cotizador` se acota por `customer_id`, y si es `NULL` se cae a `userId` para que nunca vea pedidos ajenos.
-- `GET|POST|PUT /api/customers` — el `admin` ve y gestiona todos los clientes; el rol `empresa` queda acotado a `customers.company_id = auth.companyId` (404 al tocar un cliente ajeno) y **siempre** crea clientes para su vendedor, ignorando un `companyId` del body; el `cotizador` solo ve y edita su propia ficha.
+- `GET|PUT /api/customers` — el `admin` ve y gestiona todos los clientes; el rol `empresa` ve los suyos (`company_id = auth.companyId`) **más** los no asignados (`NULL`), y su `PUT` **reclama** el cliente (setea `company_id = auth.companyId`) al mismo tiempo que aplica condiciones comerciales (404 al tocar un cliente ya asignado a otro vendedor); el `cotizador` solo ve y edita su propia ficha. El `POST` es solo del `admin`: el alta directa de compradores quedó fuera del `empresa` (el comprador se registra solo).
 - `POST /api/orders` — el `company_id` (vendedor) se **infiere de los productos**; si el carrito mezcla vendedores queda `NULL`.
 - `GET|PUT /api/users/company` — responde 400 para el admin (no tiene vendedor propio)
 - `POST /api/price-lists`, `POST /api/users` — el admin debe indicar `companyId` destinatario

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getCustomers, updateCustomer, createCustomer, getPriceLists } from '../services/api.ts'
+import { getCustomers, updateCustomer, getPriceLists } from '../services/api.ts'
 import type { CustomerAdminItem } from '../services/api.ts'
 import type { PriceList, CompanyType } from '../types/auth.ts'
 
@@ -27,28 +27,25 @@ const CHANNEL_NAME: Record<'retail' | 'chilecompra', string> = {
   chilecompra: 'ChileCompra',
 }
 
-const EMPTY_FORM = {
-  kind: 'empresa' as 'persona' | 'empresa',
-  name: '',
-  rut: '',
-  email: '',
-  phone: '',
-  address: '',
-  commune: '',
-  region: '',
-  billingAddress: '',
-  billingCommune: '',
-  billingRegion: '',
-  type: 'normal' as CompanyType,
-  paymentTerms: '',
-  retailPriceListId: '',
-  chilecompraPriceListId: '',
-  creditLimit: '0',
-  status: 'pending',
-  password: '',
+type FormState = {
+  kind: 'persona' | 'empresa'
+  name: string
+  rut: string
+  email: string
+  phone: string
+  address: string
+  commune: string
+  region: string
+  billingAddress: string
+  billingCommune: string
+  billingRegion: string
+  type: CompanyType
+  paymentTerms: string
+  retailPriceListId: string
+  chilecompraPriceListId: string
+  creditLimit: string
+  status: string
 }
-
-type FormState = typeof EMPTY_FORM
 
 function assignedChannelId(c: CustomerAdminItem, channel: 'retail' | 'chilecompra'): string {
   return c.priceLists?.find((p) => p.channel === channel)?.id?.toString() ?? ''
@@ -73,7 +70,6 @@ function toForm(c: CustomerAdminItem): FormState {
     chilecompraPriceListId: assignedChannelId(c, 'chilecompra'),
     creditLimit: c.creditLimit ?? '0',
     status: c.status,
-    password: '',
   }
 }
 
@@ -186,6 +182,9 @@ function CustomerRow({
       <tr>
         <td>
           <strong>{customer.name}</strong>
+          {customer.companyId == null && (
+            <div><span className="badge-unclaimed">Auto-registrado</span></div>
+          )}
           <div className="muted">{customer.kind === 'persona' ? 'Persona natural' : 'Empresa'}</div>
         </td>
         <td>{customer.rut ?? '-'}</td>
@@ -303,141 +302,6 @@ function CustomerRow({
   )
 }
 
-function NewCustomerForm({
-  priceLists,
-  onCreated,
-}: {
-  priceLists: PriceList[]
-  onCreated: () => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [f, setF] = useState<FormState>({ ...EMPTY_FORM })
-
-  const set = (k: keyof FormState) => (e: { target: { value: string } }) =>
-    setF((p) => ({ ...p, [k]: e.target.value }))
-
-  async function create() {
-    setSaving(true)
-    setError('')
-    try {
-      await createCustomer({
-        kind: f.kind,
-        name: f.name,
-        rut: f.rut || null,
-        email: f.email || null,
-        phone: f.phone || null,
-        address: f.address || null,
-        commune: f.commune || null,
-        region: f.region || null,
-        type: f.type,
-        paymentTerms: (f.paymentTerms || null) as CustomerAdminItem['paymentTerms'],
-        priceListIds: priceListIdsFromForm(f),
-        creditLimit: f.creditLimit || '0',
-        status: f.status,
-      })
-      setOpen(false)
-      setF({ ...EMPTY_FORM })
-      onCreated()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al crear')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div style={{ marginBottom: '1rem' }}>
-      <button className="send-quote-btn" onClick={() => setOpen((o) => !o)}>
-        {open ? 'Cancelar' : '+ Nuevo comprador'}
-      </button>
-      {open && (
-        <div className="user-form" style={{ marginTop: '0.75rem' }}>
-          {error && <p className="form-error">{error}</p>}
-          <div className="form-grid">
-            <div className="form-field">
-              <label>Tipo</label>
-              <select value={f.kind} onChange={set('kind')}>
-                <option value="empresa">Empresa</option>
-                <option value="persona">Persona natural</option>
-              </select>
-            </div>
-            <div className="form-field">
-              <label>Nombre / Razón social *</label>
-              <input value={f.name} onChange={set('name')} />
-            </div>
-            <div className="form-field">
-              <label>RUT</label>
-              <input value={f.rut} onChange={set('rut')} placeholder="12345678-5" />
-            </div>
-            <div className="form-field">
-              <label>Email</label>
-              <input value={f.email} onChange={set('email')} />
-            </div>
-            <div className="form-field">
-              <label>Teléfono</label>
-              <input value={f.phone} onChange={set('phone')} />
-            </div>
-            <div className="form-field">
-              <label>Dirección</label>
-              <input value={f.address} onChange={set('address')} />
-            </div>
-            <div className="form-field">
-              <label>Comuna</label>
-              <input value={f.commune} onChange={set('commune')} />
-            </div>
-            <div className="form-field">
-              <label>Región</label>
-              <input value={f.region} onChange={set('region')} />
-            </div>
-            <div className="form-field">
-              <label>Canal de compra</label>
-              <select value={f.type} onChange={set('type')}>
-                <option value="normal">Compra normal</option>
-                <option value="chilecompra">ChileCompra</option>
-                <option value="both">Ambos</option>
-              </select>
-            </div>
-            <PriceListSelects
-              value={f}
-              priceLists={priceLists}
-              setValue={(updates) => setF((p) => ({ ...p, ...updates }))}
-            />
-            <div className="form-field">
-              <label>Límite de crédito</label>
-              <input value={f.creditLimit} onChange={set('creditLimit')} />
-            </div>
-            <div className="form-field">
-              <label>Condición de pago</label>
-              <select value={f.paymentTerms} onChange={set('paymentTerms')}>
-                <option value="">Sin condición</option>
-                <option value="contado">De contado</option>
-                <option value="30">30 días</option>
-                <option value="60">60 días</option>
-                <option value="90">90 días</option>
-              </select>
-            </div>
-            <div className="form-field">
-              <label>Estado</label>
-              <select value={f.status} onChange={set('status')}>
-                <option value="pending">Pendiente</option>
-                <option value="active">Activo</option>
-                <option value="suspended">Suspendido</option>
-              </select>
-            </div>
-          </div>
-          <div className="admin-actions">
-            <button className="btn-primary" onClick={create} disabled={saving || !f.name.trim()}>
-              {saving ? 'Creando...' : 'Crear comprador'}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 /** Gestión de compradores: personas naturales y organizaciones que compran catálogo. */
 export function CustomersManager() {
   const [search, setSearch] = useState('')
@@ -475,8 +339,10 @@ export function CustomersManager() {
   return (
     <div className="admin-panel">
       <h3>Compradores</h3>
-      <p className="muted">Personas naturales y organizaciones que compran en la plataforma.</p>
-      <NewCustomerForm priceLists={priceLists} onCreated={reload} />
+      <p className="muted">
+        Los compradores se registran solos desde la plataforma. Aquí les asignas tus listas de precio,
+        crédito y condición de pago; al guardar quedan asociados a tu vendedor.
+      </p>
       <input
         type="text"
         placeholder="Buscar por nombre, email o RUT..."

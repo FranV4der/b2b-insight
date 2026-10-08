@@ -581,3 +581,27 @@ Las listas de precio ya no requieren alta de ítems uno a uno: se sube un Excel 
 #### Gestión de compradores (CustomersManager)
 - Se corrigió el desalineado de inputs: los formularios usaban `<label>` suelto como hijo de `.form-grid` (que es `display: grid`), pero el CSS solo estiliza los inputs dentro de `.form-field`. Ahora todos los campos están envueltos en `<div className="form-field">`, alineados en la grilla.
 - Nuevos estilos base en App.css: `.admin-panel` (columna con gap), `.admin-table` (encabezados uppercase, hover), `.search-input`, `.admin-actions`, `.btn-primary`, `.btn-sm`, y badges de estado de cliente (`.badge-pending/active/suspended`).
+
+---
+
+## Fase 7 (2026-10-08): Ciclo de alta de comprador (Opción B — auto-registro + reclamo)
+
+Se definió el flujo de alta de compradores: **el comprador se registra solo** y la empresa solo le asigna lo comercial. Se descartó que la empresa cree cuentas desde cero (la creación directa quedó solo para el `admin` de plataforma).
+
+#### Ciclo
+1. El comprador se registra vía `POST /api/auth/register` o `/api/auth/register-cotizador` → crea `customers` con `company_id = NULL` (sin vendedor) + `users` (`cotizador`) con password hasheado y login automático.
+2. La empresa lo ve en el listado con badge **"Auto-registrado"**.
+3. La empresa lo edita: asigna listas de precio / crédito / condición de pago y, al guardar, el `PUT` **reclama** el cliente (setea `company_id = auth.companyId`).
+
+#### Backend (`src/routes/customers.ts`)
+- `GET /` para `empresa`: ahora incluye los clientes no asignados (`company_id IS NULL`) además de los suyos (`company_id = auth.companyId`). Importado `isNull`.
+- `PUT /:id` para `empresa`: la comprobiación de propiedad acepta también `company_id IS NULL`, y el update setea `companyId = auth.companyId` (reclamo). Sigue devolviendo 404 si el cliente está asignado a otro vendedor (tenancy intacto).
+- `POST /` restringido a `admin` (antes también permitía `empresa`): el alta directa de compradores queda fuera del vendedor.
+
+#### Frontend
+- `src/services/api.ts`: `CustomerAdminItem` expone `companyId: number | null`.
+- `src/components/CustomersManager.tsx`: se eliminó el formulario "Nuevo comprador" y `EMPTY_FORM`/`password` (estado muerto); se añadió badge `.badge-unclaimed` ("Auto-registrado") cuando `companyId == null`; texto introductorio explica el flujo de auto-registro + asignación.
+- `src/App.css`: nuevo estilo `.badge-unclaimed` (azul).
+
+#### Nota multi-vendedor
+El modelo "reclamo" implica que, en un escenario con varios vendedores, los compradores auto-registrados (`company_id = NULL`) son visibles para **todas** las empresas y el primer en editarlos los reclama. Aceptable en la realidad actual (IMEX es el vendedor principal); si se escalan varios vendedores en paralelo habría que añadir selección de vendedor en el registro o asignación por el `admin`.

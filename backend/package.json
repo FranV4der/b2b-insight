@@ -14,6 +14,7 @@
     "db:push": "drizzle-kit push",
     "db:migrate-price-lists": "tsx src/scripts/migrate-price-lists.ts",
     "seed:users": "tsx src/scripts/seed-users.ts",
+    "seed:customers": "tsx src/scripts/seed-customers.ts",
     "create:admin": "tsx src/scripts/create-admin.ts",
     "create:company": "tsx src/scripts/create-company.ts",
     "db:studio": "drizzle-kit studio"

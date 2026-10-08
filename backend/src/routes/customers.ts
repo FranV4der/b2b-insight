@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../db/index.js";
 import { customers, users, priceLists, customerPriceLists } from "../db/schema.js";
-import { eq, and, or, ilike, asc, sql, inArray } from "drizzle-orm";
+import { eq, and, or, ilike, asc, sql, inArray, isNull } from "drizzle-orm";
 import { requireAuth, scopeCustomerId, scopeCompanyId, type AuthPayload } from "../middleware/auth.js";
 import { normalizeRut, EMAIL_RE } from "../utils/validation.js";
 import {
@@ -100,7 +100,9 @@ customersRouter.get("/", async (req, res) => {
     if (auth.role === "cotizador") {
       conditions.push(eq(customers.id, scopeCustomerId(auth) ?? -1));
     } else if (auth.role === "empresa") {
-      conditions.push(eq(customers.companyId, auth.companyId ?? -1));
+      // El vendedor ve sus clientes ya asignados y también los auto-registrados
+      // aún sin asignar (company_id NULL), para poder reclamarlos.
+      conditions.push(or(eq(customers.companyId, auth.companyId ?? -1), isNull(customers.companyId)));
     }
     if (search) {
       conditions.push(
@@ -158,18 +160,15 @@ function validatePaymentTerms(value: unknown): string | undefined {
 customersRouter.post("/", async (req, res) => {
   try {
     const auth = req.auth!;
-    if (auth.role !== "admin" && auth.role !== "empresa") {
+    // El alta directa de compradores queda solo para el admin de plataforma. El
+    // rol `empresa` no crea clientes: el comprador se registra solo (auth/register)
+    // y el vendedor lo reclama vía PUT asignándole condiciones comerciales.
+    if (auth.role !== "admin") {
       res.status(403).json({ error: "No tienes permisos para crear clientes" });
       return;
     }
-    // El admin de plataforma puede asignar el vendedor; el de empresa solo crea
-    // clientes para la suya.
     const targetCompanyId =
-      auth.role === "empresa"
-        ? auth.companyId ?? -1
-        : req.body.companyId != null
-          ? Number(req.body.companyId)
-          : null;
+      req.body.companyId != null ? Number(req.body.companyId) : null;
 
     const {
       kind,
@@ -301,7 +300,7 @@ customersRouter.put("/:id", async (req, res) => {
       const [owned] = await db
         .select({ id: customers.id })
         .from(customers)
-        .where(and(eq(customers.id, id), eq(customers.companyId, auth.companyId ?? -1)));
+        .where(and(eq(customers.id, id), or(eq(customers.companyId, auth.companyId ?? -1), isNull(customers.companyId))));
       if (!owned) {
         res.status(404).json({ error: "Comprador no encontrado" });
         return;
@@ -428,6 +427,7 @@ customersRouter.put("/:id", async (req, res) => {
         ...(billingCommune !== undefined && { billingCommune: trimmedOrNull(billingCommune) }),
         ...(billingRegion !== undefined && { billingRegion: trimmedOrNull(billingRegion) }),
         ...(paymentTerms !== undefined && { paymentTerms: trimmedOrNull(paymentTerms) }),
+        ...(auth.role === "empresa" && auth.companyId != null && { companyId: auth.companyId }),
         updatedAt: new Date(),
       })
       .where(eq(customers.id, id))

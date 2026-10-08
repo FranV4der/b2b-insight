@@ -616,6 +616,7 @@ export async function getPriceLists(): Promise<PriceList[]> {
 
 export interface CustomerAdminItem {
   id: number
+  companyId: number | null
   kind: 'persona' | 'empresa'
   name: string
   rut: string | null
