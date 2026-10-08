@@ -59,7 +59,7 @@ cp .env.example .env     # Configurar DATABASE_URL y JWT_SECRET
 npm run db:push           # Crear/actualizar tablas
 npm run create:admin -- admin@tuempresa.cl <password> "Tu Nombre"
                           # Crea el admin de plataforma (company_id = NULL)
-npm run create:company -- --name "IMEX ESTADO" --rut "96.185.309-7" \
+npm run create:company -- --name "IMEX ESTADO" --rut "84888400-6" \
                           --admin-email admin@imex.cl --admin-password <pass>
                           # Alta de VENDEDOR (valida RUT) + su usuario rol 'empresa'
 npm run seed:users        # Usuarios demo; requiere empresa 'insumos-arcadia' + productos
@@ -183,26 +183,27 @@ git push -u origin main
 ```
 
 ### 2. Railway (backend)
-1. Nuevo proyecto Railway → "Deploy from GitHub repo" → elegir **backend/** como root.
-2. `railway.json` ya está configurado (nixpacks, `npm start`, healthcheck `/api/health`).
+1. Nuevo proyecto Railway → "Deploy from GitHub repo" → elegir el servicio y fijar **root directory = `backend/`** (el build/process corre con cwd `/app`; ver nota de volume en el punto 5).
+2. `backend/railway.json` ya está configurado (nixpacks, `npm start`, healthcheck `/api/health`).
 3. Añadir **PostgreSQL** y copiar la internal/privat URL a `DATABASE_URL`.
 4. Variables: `CORS_ORIGIN=https://<tu-app>.vercel.app`, `JWT_SECRET` (`openssl rand -base64 48`), `MERCADO_PUBLICO_TICKET`, y opcionalmente SMTP_*. `PORT` lo asigna Railway.
-5. **Persistencia (obligatorio)**: montar un **Volume** en `backend/uploads` para que imágenes/documentos/logos no se pierdan en cada deploy.
+5. **Persistencia (obligatorio)**: montar un **Volume** en `/app/uploads` (verificado: con root `backend/`, Railway coloca el código en `/app` y la app escribe en `/app/uploads`, coincidente con `RAILWAY_VOLUME_MOUNT_PATH`). Sin esto, imágenes/documentos/logos se borran en cada deploy.
 6. Una vez levantado, **migrar la BD y crear usuarios** (una sola vez, apuntando a la BD de Railway):
    ```sh
    cd backend
    set -a; . ./.env; set +a      # o exportar DATABASE_URL de Railway
    npm run db:push               # crea las tablas
    npm run create:admin -- admin@tuempresa.cl <pass> "Admin"
-   npm run create:company -- --name "IMEX ESTADO" --rut "96.185.309-7" --admin-email admin@imex.cl --admin-password <pass>
+   npm run create:company -- --name "IMEX ESTADO" --rut "84888400-6" --admin-email admin@imex.cl --admin-password <pass>
    ```
-7. Copiar el dominio de producción (ej. `https://backendname.up.railway.app`) y probar `/api/health`.
+7. Copiar el dominio de producción (ej. `https://b2b-insight-production.up.railway.app`) y probar `/api/health`.
 
 ### 3. Vercel (frontend)
 1. Importar el repo → Framework **Vite**, build `npm run build`, output `dist`. Node 22 (fijado por `engines`).
 2. Sin variables si se usan rewrites.
-3. **Editar `vercel.json`**: reemplazar `REEMPLAZAR-CON-TU-DOMINIO.up.railway.app` por el dominio de producción de Railway (aparece en 2 sitios).
+3. `vercel.json` ya apunta a `https://b2b-insight-production.up.railway.app`.
 4. Deployar y probar: catalog, login empresa/admin, subir imagen (se guarda en el volume), generar cotización PDF y consulta de licitación.
+5. Después del deploy, setear en Railway `CORS_ORIGIN=https://<dominio-vercel>.vercel.app` (los rewrites son same-origin desde el browser, pero el header `Origin` llega igual al backend).
 
 ### Notas de producción
 - Los adjuntos viven en disco (`backend/uploads/`): el volumen de Railway persiste entre deploys; mover a S3/R2 si se escala.

@@ -1,5 +1,4 @@
 import "dotenv/config";
-import fs from "fs";
 import http from "http";
 import express, { type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
@@ -107,13 +106,6 @@ app.use((err: Error, _req: Request, res: Response, next: NextFunction) => {
 const server = http.createServer(app);
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Backend running on http://localhost:${PORT}`);
-  console.log("[boot] cwd =", process.cwd());
-  console.log("[boot] dist dir =", __dirname);
-  console.log("[boot] uploads (dist+../) =", path.join(__dirname, "..", "uploads"));
-  console.log("[boot] uploads (cwd) =", path.resolve("uploads"));
-  console.log("[boot] RAILWAY_VOLUME_MOUNT_PATH =", process.env.RAILWAY_VOLUME_MOUNT_PATH || "(no set)");
-  console.log("[boot] uploadsDir exists =", fs.existsSync(path.join(__dirname, "..", "uploads")));
-  console.log("[boot] cwd/uploads exists =", fs.existsSync(path.resolve("uploads")));
 });
 
 process.on("unhandledRejection", (err) => {

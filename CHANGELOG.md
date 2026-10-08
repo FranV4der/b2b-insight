@@ -488,9 +488,26 @@ canal de compra y el precio dependen del **tipo de cliente registrado**:
 - Botón "Repetir pedido" oculto para el rol `empresa` en el detalle de pedido.
 
 #### Despliegue MVP (preparación)
-- `vercel.json` — rewrites `/api/*` y `/uploads/*` hacia el backend de Railway (reemplazar `REEMPLAZAR-CON-TU-DOMINIO.up.railway.app` por el dominio real).
+- `vercel.json` — rewrites `/api/*` y `/uploads/*` hacia el backend de Railway (inicialmente con placeholder `REEMPLAZAR-CON-TU-DOMINIO.up.railway.app`; ver "Puesta en producción Railway" abajo para el dominio real).
 - `backend/src/routes/mercadopublico.ts` — proxy de Mercado Público en Express: `GET /api/mp/licitaciones.json` consulta la API pública con `MERCADO_PUBLICO_TICKET` server-side (503 con mensaje amigable si no hay ticket o el servicio falla).
 - `engines.node: >=22.12.0` en `package.json` (front y backend) para fijar Node 22 en Vercel/Nixpacks.
 - Correcciones: `CartView` enviaba `userType` con vocabulario equivocado (`general`/`mercadopublico`) que el backend rechaza al guardar la cotización → ahora mapea a `chilecompra`/`convenio-marco` según el canal; `ProductDetailView` ahora pide el producto completo (`GET /products/:id`) para mostrar todas las imágenes.
 - `AGENTS.md` — sección "Despliegue MVP (Vercel + Railway)" con pasos para GitHub, Railway (Postgres, volumen en `backend/uploads`, migración y usuarios) y Vercel (rewrites).
 - Repo Git inicializado (rama `main`, primer commit) con `backend/uploads/` versionado para que el demo conserve imágenes; `.env`, `*.pid` y `backend/drizzle` ignorados.
+
+### Puesta en producción Railway (2026-10-07)
+
+#### Done
+- Proyecto Railway `happy-endurance` / env `production`: servicio `b2b-insight` (root directory `backend/`, Nixpacks, `npm start`, healthcheck `/api/health`) + Postgres con volume propio.
+- Variables del servicio: `DATABASE_URL` (internal), `JWT_SECRET`, `MERCADO_PUBLICO_TICKET`. `db:push` aplicado y usuarios creados contra la BD de producción: admin de plataforma `fdonoso@insightechnology.cl` y vendedor **IMEX ESTADO** (RUT real `84888400-6`, slug `imex-estado`, admin `admin@imex.cl`).
+- Fix `backend/src/scripts/create-company.ts`: el INSERT listaba 18 columnas pero el `VALUES` terminaba en `$16` → "INSERT has more target columns than expressions"; se agregó `$17` (status). El RUT documentado antes (`96.185.309-7`) tiene DV inválido; se corrigió a `84888400-6`.
+- Dominio público: `https://b2b-insight-production.up.railway.app` (verificado: `/api/health` ok, proxy Mercado Público responde, login admin y empresa ok).
+- `vercel.json` apunta al dominio real de Railway (listo para importar en Vercel).
+
+#### Volume (lección aprendida)
+- Con root `backend/`, Railway monta el código en `/app` (cwd `/app`, build `/app/dist`, uploads en `/app/uploads`), NO en `/app/backend`.
+- El volume debe montarse en **`/app/uploads`** (coincide con `RAILWAY_VOLUME_MOUNT_PATH`). Un primer intento en `/app/backend/uploads` hizo que la app siguiera escribiendo en el filesystem efímero y los archivos se perdieran en cada redeploy; se diagnosticó con logs de arranque (`process.cwd()`, `__dirname`, `RAILWAY_VOLUME_MOUNT_PATH`) y se verificó que un upload sobrevive un redeploy completo.
+
+#### Pendiente
+- Importar repo en **Vercel** (framework Vite, `dist`); tras el deploy, setear en Railway `CORS_ORIGIN=https://<dominio>.vercel.app` (los rewrites son same-origin, pero el header `Origin` llega al backend y el middleware CORS lo exige en la allowlist).
+- Carga de productos reales de IMEX ESTADO + datos legales y logo; teléfono real para WhatsApp; rotar passwords temporales; verificación visual del PDF en producción; ERP Microsoft Dynamics.
