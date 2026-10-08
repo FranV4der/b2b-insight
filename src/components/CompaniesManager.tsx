@@ -69,70 +69,70 @@ function SellerRow({ company, onSave }: { company: CompanyAdminItem; onSave: () 
           <td colSpan={5}>
             {error && <p className="form-error">{error}</p>}
             <div className="form-grid">
-              <label>
-                Nombre comercial
+              <div className="form-field">
+                <label>Nombre comercial</label>
                 <input value={f.name} onChange={set('name')} />
-              </label>
-              <label>
-                Razón social
+              </div>
+              <div className="form-field">
+                <label>Razón social</label>
                 <input value={f.legalName} onChange={set('legalName')} />
-              </label>
-              <label>
-                RUT
+              </div>
+              <div className="form-field">
+                <label>RUT</label>
                 <input value={f.rut} onChange={set('rut')} placeholder="12345678-5" />
-              </label>
-              <label>
-                Giro
+              </div>
+              <div className="form-field">
+                <label>Giro</label>
                 <input value={f.businessActivity} onChange={set('businessActivity')} />
-              </label>
-              <label>
-                Dirección
+              </div>
+              <div className="form-field">
+                <label>Dirección</label>
                 <input value={f.address} onChange={set('address')} />
-              </label>
-              <label>
-                Comuna
+              </div>
+              <div className="form-field">
+                <label>Comuna</label>
                 <input value={f.commune} onChange={set('commune')} />
-              </label>
-              <label>
-                Región
+              </div>
+              <div className="form-field">
+                <label>Región</label>
                 <input value={f.region} onChange={set('region')} />
-              </label>
-              <label>
-                Teléfono
+              </div>
+              <div className="form-field">
+                <label>Teléfono</label>
                 <input value={f.phone} onChange={set('phone')} />
-              </label>
-              <label>
-                Email
-                <input value={f.email} onChange={set('email')} />
-              </label>
-              <label>
-                Sitio web
-                <input value={f.website} onChange={set('website')} />
-              </label>
-              <label>
-                Contacto
+              </div>
+              <div className="form-field">
+                <label>Email</label>
+                <input value={f.email} onChange={set('email')} type="email" />
+              </div>
+              <div className="form-field">
+                <label>Sitio web</label>
+                <input value={f.website} onChange={set('website')} placeholder="https://" />
+              </div>
+              <div className="form-field">
+                <label>Contacto</label>
                 <input value={f.contactName} onChange={set('contactName')} />
-              </label>
-              <label>
-                Cargo del contacto
+              </div>
+              <div className="form-field">
+                <label>Cargo del contacto</label>
                 <input value={f.contactRole} onChange={set('contactRole')} />
-              </label>
-              <label>
-                Email del contacto
-                <input value={f.contactEmail} onChange={set('contactEmail')} />
-              </label>
-              <label>
-                Teléfono del contacto
+              </div>
+              <div className="form-field">
+                <label>Email del contacto</label>
+                <input value={f.contactEmail} onChange={set('contactEmail')} type="email" />
+              </div>
+              <div className="form-field">
+                <label>Teléfono del contacto</label>
                 <input value={f.contactPhone} onChange={set('contactPhone')} />
-              </label>
-              <label>
-                Estado
+              </div>
+              <div className="form-field">
+                <label>Estado</label>
                 <select value={f.status} onChange={set('status')}>
                   <option value="pending">Pendiente</option>
                   <option value="active">Activo</option>
                   <option value="suspended">Suspendido</option>
                 </select>
-              </label>
+              </div>
             </div>
             <button className="btn-primary" onClick={save} disabled={saving}>
               {saving ? 'Guardando...' : 'Guardar vendedor'}

@@ -21,8 +21,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export function Header({ onOpenRegister }: Props) {
   const { userType, items, navigate, setUserType, view, storeSearch, setStoreSearch, storeCategory, setStoreCategory, setLicitacionCode } = useApp()
-  const { user, customer, logout, isEmpresa, isAdmin } = useAuth()
-  const [loginOpen, setLoginOpen] = useState(false)
+  const { user, customer, logout, isEmpresa, isAdmin, loginOpen, setLoginOpen } = useAuth()
   const [categoryOpen, setCategoryOpen] = useState(false)
   const [categories, setCategories] = useState<Category[]>([])
   const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([])

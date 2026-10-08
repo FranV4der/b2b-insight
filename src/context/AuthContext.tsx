@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, type Dispatch, type SetStateAction, type ReactNode } from 'react'
 import type { AuthUser, AuthCustomer } from '../types/auth.ts'
 import { getMe } from '../services/api.ts'
 
@@ -18,6 +18,9 @@ interface AuthContextType extends AuthState {
   isAdmin: boolean
   isEmpresa: boolean
   isCotizador: boolean
+  /** Visibilidad del dropdown de login. Fuera de AuthState para que setAuth/logout no lo reinicien. */
+  loginOpen: boolean
+  setLoginOpen: Dispatch<SetStateAction<boolean>>
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -70,8 +73,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isEmpresa = state.user?.role === 'empresa'
   const isCotizador = state.user?.role === 'cotizador'
 
+  const [loginOpen, setLoginOpen] = useState(false)
+
   return (
-    <AuthContext.Provider value={{ ...state, setAuth, logout, isAdmin, isEmpresa, isCotizador }}>
+    <AuthContext.Provider
+      value={{ ...state, setAuth, logout, isAdmin, isEmpresa, isCotizador, loginOpen, setLoginOpen }}
+    >
       {children}
     </AuthContext.Provider>
   )

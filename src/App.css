@@ -1,10 +1,25 @@
 /* ─── Layout ─── */
 main {
   flex: 1;
+  min-width: 0;
+}
+
+/* Vistas de tienda: contenedor centrado de ancho fijo */
+.store-layout {
   width: 1126px;
   max-width: 100%;
   margin: 0 auto;
   padding: 2rem 1.5rem;
+}
+
+/* Panel de gestión: sidebar full-width + contenido fluido (estilo Shopify) */
+.panel-layout {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
 }
 
 /* ─── Header ─── */
@@ -64,7 +79,7 @@ main {
   overflow-y: auto;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
   padding: 0.375rem;
   z-index: 50;
@@ -212,7 +227,7 @@ main {
   gap: 1rem;
   padding: 2.5rem 1.5rem;
   border: 2px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--bg);
   transition: border-color 0.2s, box-shadow 0.2s;
   text-align: center;
@@ -252,8 +267,8 @@ main {
 .catalog-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
   margin-top: 0.25rem;
 }
 
@@ -278,14 +293,14 @@ main {
   flex-direction: column;
   height: 100%;
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--bg);
   cursor: pointer;
   transition: box-shadow 0.22s, transform 0.22s, border-color 0.22s;
 
   &:hover {
-    box-shadow: 0 20px 40px -16px rgba(15, 23, 42, 0.22), 0 4px 12px rgba(37, 99, 235, 0.06);
+    box-shadow: var(--shadow-lg);
     transform: translateY(-4px);
     border-color: #cbd5e1;
   }
@@ -377,7 +392,9 @@ main {
   align-items: baseline;
   gap: 0.5rem;
   flex-wrap: wrap;
-  margin-top: 0.3rem;
+  /* Empuja el bloque de precio (y el CTA) al pie de la tarjeta */
+  margin-top: auto;
+  padding-top: 0.4rem;
 }
 
 .price, .sale-price {
@@ -437,7 +454,7 @@ main {
   padding: 0.625rem 1rem;
   font-weight: 600;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius);
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   color: #fff;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
@@ -462,13 +479,42 @@ main {
   margin-left: auto;
 }
 
-.loading, .error {
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
   padding: 3rem;
   text-align: center;
   color: var(--text-light);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.loading::before {
+  content: '';
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 999px;
+  animation: spinner-rotate 0.7s linear infinite;
+}
+
+@keyframes spinner-rotate {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading::before {
+    animation-duration: 1.6s;
+  }
 }
 
 .error {
+  padding: 3rem;
+  text-align: center;
   color: var(--danger);
 }
 
@@ -619,7 +665,7 @@ main {
   text-align: center;
   font-variant-numeric: tabular-nums;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   font-size: 0.9rem;
 }
 
@@ -972,39 +1018,287 @@ main {
   color: #1e40af;
 }
 
-.admin-header {
+/* ─── Panel: sidebar full-width + contenido ─── */
+.panel-sidebar {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100svh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+  z-index: 40;
+}
+
+.panel-brand {
   display: flex;
   align-items: center;
+  gap: 0.6rem;
+  padding: 1rem 1rem 0.875rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-brand-mark {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.panel-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  min-width: 0;
+}
+
+.panel-brand-text b {
+  font-size: 0.875rem;
+  color: var(--text-heading);
+}
+
+.panel-brand-text small {
+  font-size: 0.7rem;
+  color: var(--text-light);
+}
+
+.panel-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: 0.875rem 0.625rem;
+  overflow-y: auto;
+}
+
+.nav-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-section-title {
+  padding: 0 0.625rem 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-light);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  border: none;
+  background: none;
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.14s, color 0.14s;
+}
+
+.nav-item:hover {
+  background: var(--bg-secondary);
+  color: var(--text-heading);
+}
+
+.nav-item.is-active {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.nav-icon {
+  flex: none;
+  opacity: 0.85;
+}
+
+.nav-item.is-active .nav-icon {
+  opacity: 1;
+}
+
+.panel-user {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.panel-user-avatar {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.panel-user-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.panel-user-info b,
+.panel-user-info small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel-user-info b {
+  font-size: 0.8125rem;
+  color: var(--text-heading);
+}
+
+.panel-user-info small {
+  font-size: 0.7rem;
+  color: var(--text-light);
+}
+
+.panel-logout {
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0.375rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text-light);
+  cursor: pointer;
+}
+
+.panel-logout:hover {
+  background: #fef2f2;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.panel-main {
+  min-width: 0;
+  background: var(--bg-secondary);
+  padding: 1.75rem 2rem 3rem;
+}
+
+.panel-menu-btn,
+.panel-backdrop {
+  display: none;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: flex-start;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 1rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
 }
 
-.admin-tabs {
-  display: flex;
-  gap: 0.25rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
+.panel-heading h2 {
+  margin: 0;
+  font-size: 1.375rem;
+  letter-spacing: -0.01em;
 }
 
-.admin-tabs button {
-  border: none;
-  border-radius: 0;
-  font-size: 0.8125rem;
-  padding: 0.5rem 1rem;
+.panel-heading p {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
   color: var(--text-light);
-
-  &:hover {
-    background: var(--bg-secondary);
-    color: var(--text);
-  }
 }
 
-.tab-active {
-  background: var(--primary) !important;
-  color: #fff !important;
+.admin-view {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-content {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+  padding: 1.5rem;
+}
+
+@media (max-width: 960px) {
+  .panel-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .panel-menu-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    position: sticky;
+    top: 0;
+    z-index: 45;
+    width: 100%;
+    padding: 0.625rem 1rem;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .panel-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 264px;
+    height: 100svh;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    z-index: 60;
+  }
+
+  .panel-sidebar.is-open {
+    transform: translateX(0);
+    box-shadow: 0 0 48px rgba(15, 23, 42, 0.28);
+  }
+
+  .panel-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    padding: 0;
+    border: none;
+    background: rgba(15, 23, 42, 0.45);
+    z-index: 55;
+    cursor: pointer;
+  }
+
+  .panel-main {
+    padding: 1.25rem 1rem 2.5rem;
+  }
+
+  .admin-content {
+    padding: 1.125rem;
+  }
 }
 
 /* ─── Product Table ─── */
@@ -1109,7 +1403,9 @@ main {
   grid-column: 1 / -1;
 }
 
-.form-field label {
+/* Cubre ambos patrones: <div class="form-field"><label> y <label class="form-field"> */
+.form-field label,
+label.form-field {
   font-size: 0.8125rem;
   font-weight: 500;
   color: var(--text-heading);
@@ -1389,7 +1685,7 @@ main {
   width: 70px;
   height: 70px;
   border: 2px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   padding: 0;
   background: var(--bg-secondary);
@@ -1769,7 +2065,7 @@ main {
   position: relative;
   aspect-ratio: 1;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   background: var(--bg-secondary);
 
@@ -1854,7 +2150,7 @@ main {
   max-width: 420px;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 2.5rem;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
 }
@@ -2268,7 +2564,7 @@ main {
   color: var(--text-light);
   font-size: 0.75rem;
   padding: 0.25rem 0.5rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   flex-shrink: 0;
 
   &:hover {
@@ -2438,7 +2734,10 @@ main {
   justify-content: space-between;
 }
 
+/* Mismo peso visual que .panel-heading h2 */
 .dashboard-header h2 {
+  font-size: 1.375rem;
+  letter-spacing: -0.01em;
   margin-bottom: 0.25rem;
 }
 
@@ -2447,21 +2746,9 @@ main {
   font-size: 0.875rem;
 }
 
-.dashboard-actions button {
-  background: var(--primary);
-  color: #fff;
-  border-color: var(--primary);
-  font-weight: 600;
-}
-
-.dashboard-actions button:hover {
-  background: var(--primary-hover);
-  border-color: var(--primary-hover);
-}
-
 .metric-cards {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 1rem;
 }
 
@@ -2482,7 +2769,7 @@ main {
   justify-content: center;
   width: 48px;
   height: 48px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   flex-shrink: 0;
 }
 
@@ -2531,7 +2818,7 @@ main {
 
 .dashboard-section {
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   background: var(--bg);
   box-shadow: var(--shadow);
   overflow: hidden;
@@ -2564,9 +2851,18 @@ main {
 }
 
 .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
   padding: 3rem 1.5rem;
   text-align: center;
   color: var(--text-light);
+}
+
+.empty-state p:first-child {
+  color: var(--text-heading);
+  font-weight: 600;
 }
 
 .empty-hint {
@@ -2608,7 +2904,7 @@ main {
   position: relative;
   overflow: hidden;
   padding: 2.75rem 2.5rem 2.25rem;
-  border-radius: 18px;
+  border-radius: var(--radius-lg);
   color: #f8fafc;
   background:
     radial-gradient(1100px 420px at 85% -10%, rgba(56, 189, 248, 0.45), transparent 60%),
@@ -2721,7 +3017,7 @@ main {
   flex-direction: column;
   gap: 0.3rem;
   padding: 1rem 1.05rem;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.16);
   backdrop-filter: blur(8px);
@@ -2762,6 +3058,60 @@ main {
   }
 }
 
+/* ─── Barra contextual para usuarios con sesión ─────────── */
+.store-welcome {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  padding: 0.875rem 1.15rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+}
+
+.store-welcome b {
+  font-size: 0.95rem;
+  color: var(--text-heading);
+}
+
+.store-welcome span {
+  font-size: 0.8125rem;
+  color: var(--text-light);
+}
+
+/* ─── Aviso único de precios reservados (sin sesión) ────── */
+.price-gate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  padding: 0.875rem 1.15rem;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-md);
+}
+
+.price-gate-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.price-gate-text b {
+  font-size: 0.9rem;
+  color: #1e3a8a;
+}
+
+.price-gate-text span {
+  font-size: 0.8125rem;
+  color: #1d4ed8;
+}
+
 /* ─── Franja de confianza ─────────────────────────────── */
 .store-trust {
   display: flex;
@@ -2786,9 +3136,8 @@ main {
 
 /* ─── Destacados (home) ───────────────────────────────── */
 .featured-section {
-  margin: 1.5rem auto 0;
-  max-width: 1200px;
-  padding: 0 1rem;
+  /* Sin padding ni max-width: debe alinearse exactamente con el hero y la grilla */
+  margin-top: 0.25rem;
 }
 
 .featured-header {
@@ -2810,14 +3159,9 @@ main {
 
 .featured-row {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 1rem;
-}
-
-@media (max-width: 768px) {
-  .featured-row {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  }
+  /* Mismo módulo que .product-grid: las tarjetas destacadas miden lo mismo */
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1.5rem;
 }
 
 /* ─── Estado vacío de catálogo ────────────────────────── */
@@ -2868,7 +3212,7 @@ main {
   align-items: center;
   justify-content: center;
   padding: 0.55rem 0.9rem;
-  border-radius: 8px;
+  border-radius: var(--radius);
   font-size: 0.87rem;
   font-weight: 700;
   text-decoration: none;
@@ -2886,7 +3230,7 @@ main {
 .status-select {
   padding: 0.3rem 0.5rem;
   padding-right: 1.6rem;
-  border-radius: 8px;
+  border-radius: var(--radius);
   font-size: 0.8rem;
   font-weight: 600;
   border: 1px solid transparent;
@@ -2914,16 +3258,15 @@ main {
 }
 
 .price-hidden {
-  font-size: 0.8125rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border);
+  font-size: 0.75rem;
   color: var(--text-light);
   font-weight: 500;
-}
-
-.btn-login-required {
-  background: #64748b !important;
-  color: #fff !important;
-  border-color: #64748b !important;
-  cursor: not-allowed !important;
 }
 
 /* ─── Login menu (header) ─── */
@@ -2950,7 +3293,7 @@ main {
   width: 300px;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
   padding: 1.25rem;
   z-index: 50;
@@ -3014,7 +3357,7 @@ main {
   text-align: center;
   padding: 2.5rem;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--bg);
 }
 
@@ -3043,7 +3386,7 @@ main {
   z-index: 60;
   background: #fff;
   border: 1px solid var(--border, #e2e8f0);
-  border-radius: 8px;
+  border-radius: var(--radius);
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
   list-style: none;
   margin: 0;
@@ -3062,7 +3405,7 @@ main {
     border: 0;
     background: none;
     cursor: pointer;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
 
     &:hover { background: #f1f5f9; }
   }
@@ -3100,7 +3443,7 @@ main {
   padding: 1rem;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
 
   h4 {
     margin: 0 0 0.6rem;
@@ -3141,7 +3484,7 @@ main {
     padding: 0.4rem 0.6rem;
     background: #f8fafc;
     border: 1px solid #e2e8f0;
-    border-radius: 8px;
+    border-radius: var(--radius);
   }
 
   a { font-size: 0.9rem; }
@@ -3172,7 +3515,7 @@ main {
     padding: 0.45rem 0.7rem;
     background: #f8fafc;
     border: 1px solid #e2e8f0;
-    border-radius: 8px;
+    border-radius: var(--radius);
     font-size: 0.9rem;
   }
 
@@ -3184,21 +3527,34 @@ main {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.6rem;
-  padding: 0.9rem 1.1rem;
-  background: linear-gradient(90deg, #eff6ff 0%, #f8fafc 55%);
+  gap: 0.5rem;
+  margin-left: auto;
+  padding: 0.35rem 0.4rem 0.35rem 0.75rem;
+  background: #eff6ff;
   border: 1px solid #dbeafe;
-  border-radius: 14px;
-  margin-bottom: 0.75rem;
+  border-radius: var(--radius-md);
 
-  h4 {
-    margin: 0 0.4rem 0 0;
-    font-size: 0.95rem;
+  input[type="text"] {
+    flex: 1 1 200px;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    padding-left: 0;
+
+    &:focus {
+      outline: none;
+      box-shadow: none;
+    }
   }
 
-  input[type="text"] { flex: 1 1 220px; }
-  .quick-qty { width: 90px; }
-  .quick-msg { width: 100%; color: #0369a1; font-size: 0.85rem; }
+  .quick-qty { width: 76px; }
+  .quick-msg {
+    flex: 1 0 100%;
+    margin: 0;
+    padding-left: 0.75rem;
+    color: #0369a1;
+    font-size: 0.8rem;
+  }
 }
 
 /* ── Filtros del catálogo ─────────────────────────────────── */
@@ -3209,7 +3565,7 @@ main {
   border: 1px solid #cbd5e1;
   background: #fff;
   padding: 0.5rem 0.95rem;
-  border-radius: 10px;
+  border-radius: var(--radius);
   cursor: pointer;
   font-size: 0.85rem;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
@@ -3231,7 +3587,7 @@ main {
 .catalog-filters {
   padding: 1rem;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   margin-bottom: 1rem;
   background: #fbfdfe;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
@@ -3254,7 +3610,7 @@ main {
   margin-top: 1.25rem;
   padding: 1rem 1.25rem;
   border: 1px dashed #bae6fd;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: #f8fcff;
 
   h4 { margin: 0 0 0.3rem; }

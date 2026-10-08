@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { AppProvider, useApp } from './context/AppContext.tsx'
 import { AuthProvider, useAuth } from './context/AuthContext.tsx'
 import { Header, type RegisterMode } from './components/Header.tsx'
+import { PanelShell } from './components/PanelShell.tsx'
 import { HomeView } from './views/HomeView.tsx'
 import { CartView } from './views/CartView.tsx'
 import { OrdersView } from './views/OrdersView.tsx'
@@ -65,6 +66,9 @@ function AppMain() {
 
   const requiresLogin = view === 'cart' || view === 'orders' || view === 'order-detail' || view === 'quotes' || view === 'dashboard' || view === 'admin'
   const isEmpresaView = view === 'dashboard' || view === 'admin'
+  // El shell con sidebar solo aplica cuando el panel realmente se renderiza
+  // (un cotizador que aterrice en /dashboard ve la tienda, no el panel).
+  const usePanelShell = isEmpresaView && (isEmpresa || isAdmin)
 
   let content
   if (view === 'product-detail') {
@@ -92,7 +96,9 @@ function AppMain() {
   return (
     <>
       <Header onOpenRegister={setAuthMode} />
-      <main>{content}</main>
+      <main className={usePanelShell ? 'panel-layout' : 'store-layout'}>
+        {usePanelShell ? <PanelShell>{content}</PanelShell> : content}
+      </main>
     </>
   )
 }

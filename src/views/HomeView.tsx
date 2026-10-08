@@ -26,7 +26,7 @@ const EMPTY_FILTERS: Filters = { minPrice: '', maxPrice: '', inStock: false, len
 
 export function HomeView() {
   const { userType, storeSearch, storeCategory, addItem, setStoreSearch, setStoreCategory } = useApp()
-  const { user, customer } = useAuth()
+  const { user, customer, setLoginOpen } = useAuth()
   const [page, setPage] = useState(1)
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -150,55 +150,65 @@ export function HomeView() {
 
   return (
     <section className="store-view">
-      <section className="store-hero">
-        <div className="hero-content">
-          <span className="hero-eyebrow">Plataforma B2B · Cotizaciones y compras públicas</span>
-          <h1>
-            Compra para tu <span className="text-gradient">licitación</span> en un solo lugar
-          </h1>
-          <p>
-            {user
-              ? 'Los precios mostrados corresponden a tu lista de precios asignada. Agrega productos, cotiza y descarga tu orden.'
-              : 'Explora el catálogo, arma tu carrito y genera una cotización en minutos. Inicia sesión para ver tus precios.'}
-          </p>
-          <div className="hero-badges">
-            <span className="hero-badge">
-              <span className="hero-badge-dot" /> ChileCompra
-            </span>
-            <span className="hero-badge">
-              <span className="hero-badge-dot" /> Convenio Marco
-            </span>
-            <span className="hero-badge">
-              <span className="hero-badge-dot" /> Precios netos + IVA 19%
-            </span>
+      {!user && (
+        <section className="store-hero">
+          <div className="hero-content">
+            <span className="hero-eyebrow">Plataforma B2B · Cotizaciones y compras públicas</span>
+            <h1>
+              Compra para tu <span className="text-gradient">licitación</span> en un solo lugar
+            </h1>
+            <p>
+              Explora el catálogo, arma tu carrito y genera una cotización en minutos. Inicia sesión
+              para ver tus precios.
+            </p>
+            <div className="hero-badges">
+              <span className="hero-badge">
+                <span className="hero-badge-dot" /> ChileCompra
+              </span>
+              <span className="hero-badge">
+                <span className="hero-badge-dot" /> Convenio Marco
+              </span>
+              <span className="hero-badge">
+                <span className="hero-badge-dot" /> Precios netos + IVA 19%
+              </span>
+            </div>
           </div>
-        </div>
 
-        <div className="hero-features">
-          <div className="hero-card">
-            <span className="hero-card-num">01</span>
-            <b>ChileCompra</b>
-            <small>Busca por código de licitación y arma el pedido</small>
+          <div className="hero-features">
+            <div className="hero-card">
+              <span className="hero-card-num">01</span>
+              <b>ChileCompra</b>
+              <small>Busca por código de licitación y arma el pedido</small>
+            </div>
+            <div className="hero-card">
+              <span className="hero-card-num">02</span>
+              <b>Cotiza en línea</b>
+              <small>Genera y descarga tu cotización en PDF</small>
+            </div>
+            <div className="hero-card">
+              <span className="hero-card-num">03</span>
+              <b>Precios claros</b>
+              <small>Netos, IVA y totales transparentes</small>
+            </div>
           </div>
-          <div className="hero-card">
-            <span className="hero-card-num">02</span>
-            <b>Cotiza en línea</b>
-            <small>Genera y descarga tu cotización en PDF</small>
-          </div>
-          <div className="hero-card">
-            <span className="hero-card-num">03</span>
-            <b>Precios claros</b>
-            <small>Netos, IVA y totales transparentes</small>
-          </div>
-        </div>
 
-        <div className="store-trust">
-          <span>✓ Despacho a todo Chile</span>
-          <span>✓ Facturación electrónica</span>
-          <span>✓ Pago a 30·60·90 días</span>
-          <span>✓ Atención B2B</span>
+          <div className="store-trust">
+            <span>✓ Despacho a todo Chile</span>
+            <span>✓ Facturación electrónica</span>
+            <span>✓ Pago a 30·60·90 días</span>
+            <span>✓ Atención B2B</span>
+          </div>
+        </section>
+      )}
+
+      {user && (
+        <div className="store-welcome">
+          <b>Catálogo B2B</b>
+          <span>
+            Precios netos de tu lista asignada · el IVA 19% se agrega al confirmar el pedido
+          </span>
         </div>
-      </section>
+      )}
 
       {featured && featured.length > 0 && (
         <section className="featured-section">
@@ -214,29 +224,6 @@ export function HomeView() {
         </section>
       )}
 
-      {user && (
-        <form className="quick-add" onSubmit={handleQuickAdd}>
-          <h4>Pedido rápido por código</h4>
-          <input
-            type="text"
-            placeholder="Ingresa un SKU / código"
-            value={quickSku}
-            onChange={(e) => setQuickSku(e.target.value)}
-          />
-          <input
-            type="number"
-            min="1"
-            value={quickQty}
-            onChange={(e) => setQuickQty(e.target.value)}
-            className="quick-qty"
-          />
-          <button className="send-quote-btn" disabled={quickBusy}>
-            {quickBusy ? 'Agregando...' : 'Agregar'}
-          </button>
-          {quickMsg && <span className="quick-msg">{quickMsg}</span>}
-        </form>
-      )}
-
       <div className="catalog-toolbar">
         <button className="filter-toggle" onClick={() => setFiltersOpen((o) => !o)}>
           <span className="filter-icon">⚙</span>
@@ -247,6 +234,29 @@ export function HomeView() {
         <span className="catalog-count">
           <b>{state.total}</b> producto{state.total !== 1 ? 's' : ''} encontrado{state.total !== 1 ? 's' : ''}
         </span>
+
+        {user && (
+          <form className="quick-add" onSubmit={handleQuickAdd} aria-label="Pedido rápido por código">
+            <input
+              type="text"
+              placeholder="Pedido rápido: ingresa un SKU / código"
+              value={quickSku}
+              onChange={(e) => setQuickSku(e.target.value)}
+            />
+            <input
+              type="number"
+              min="1"
+              value={quickQty}
+              onChange={(e) => setQuickQty(e.target.value)}
+              className="quick-qty"
+              aria-label="Cantidad"
+            />
+            <button className="send-quote-btn" disabled={quickBusy}>
+              {quickBusy ? 'Agregando...' : 'Agregar'}
+            </button>
+            {quickMsg && <span className="quick-msg">{quickMsg}</span>}
+          </form>
+        )}
       </div>
 
       {filtersOpen && (
@@ -278,6 +288,18 @@ export function HomeView() {
             </label>
           </div>
           <button className="btn-sm" onClick={clearFilters}>Limpiar filtros</button>
+        </div>
+      )}
+
+      {!user && !state.loading && !state.error && (
+        <div className="price-gate">
+          <div className="price-gate-text">
+            <b>Inicia sesión para ver precios y comprar</b>
+            <span>Los precios de este catálogo los define tu proveedor.</span>
+          </div>
+          <button className="btn-primary" onClick={() => setLoginOpen(true)}>
+            Iniciar sesión
+          </button>
         </div>
       )}
 

@@ -605,3 +605,40 @@ Se definió el flujo de alta de compradores: **el comprador se registra solo** y
 
 #### Nota multi-vendedor
 El modelo "reclamo" implica que, en un escenario con varios vendedores, los compradores auto-registrados (`company_id = NULL`) son visibles para **todas** las empresas y el primer en editarlos los reclama. Aceptable en la realidad actual (IMEX es el vendedor principal); si se escalan varios vendedores en paralelo habría que añadir selección de vendedor en el registro o asignación por el `admin`.
+
+---
+
+## Fase 8 (2026-10-08): Rediseño UX/UI — panel con sidebar full-width + home colapsada
+
+Rediseño integral: bugs concretos, página principal y panel de gestión con sistema visual unificado.
+
+#### Decisión de layout
+- El panel pasa de pestañas horizontales dentro de `main` (1126px) a **sidebar full-width estilo Shopify**: 248px sticky + contenido fluido. Las tablas de gestión (pedidos, cotizaciones, productos) necesitan el ancho completo del viewport; con `main` a 1126px quedaban cortas.
+- `main` conserva `width: 1126px` solo para las vistas de tienda (`.store-layout`); el panel usa `.panel-layout` (grid `248px minmax(0,1fr)`). `App.tsx` alterna según `usePanelShell = isEmpresaView && (isEmpresa || isAdmin)`. Un `cotizador` que aterrice en `dashboard`/`admin` ve la tienda, no el panel.
+
+#### Sidebar (`src/components/PanelShell.tsx`, nuevo)
+- Secciones agrupadas: Dashboard · Catálogo (Productos, Nuevo Producto, Carga Masiva, Categorías, Marcas) · Ventas (Órdenes, Cotizaciones) · Comercial (Listas de Precio, Clientes) · Cuenta (Usuarios, Mi Empresa / Vendedores).
+- Iconos SVG inline, barra de usuario + logout al pie; en ≤960px se convierte en drawer off-canvas (`.panel-menu-btn` + backdrop).
+- `AdminView.tsx`: sin header ni 11 pestañas; `.panel-heading` por sección y `.admin-content` como card.
+
+#### Estado de navegación (`src/context/AppContext.tsx`)
+- `adminTab`, `gotoAdmin(tab)` (cambia `view` + `adminTab` en un solo render) y `editingProduct` pasan al contexto; nuevo tipo `AdminTab` en `src/types/panel.ts`.
+- `gotoAdmin` limpia `editingProduct`, así "Nuevo Producto" siempre abre el formulario vacío. Se descartó la alternativa de limpiar en un `useEffect` porque `react-hooks/set-state-in-effect` lo rechaza.
+
+#### Bugs corregidos
+- **`DashboardView`**: comparaba `status === 'accepted'`, pero el backend (`routes/quotes.ts`) usa `pending|approved|rejected|converted` → todas las cotizaciones aparecían como "Rechazada". Ahora se mapea con `quoteStatusMeta()`.
+- **`CompaniesManager`**: 15 `<label>` sueltos como hijos de `.form-grid` (que es grid) desalineaban el form "Mi Empresa". Envueltos en `.form-field`; CSS ampliado a `label.form-field` para cubrir `CompanyProfile` (que usa el patrón inverso).
+
+#### Página principal
+- Hero y form "Pedido rápido" solo para usuarios sin sesión; con sesión se muestra la barra `.store-welcome`. El form se movió al `.catalog-toolbar` (antes era un `h4` sobre un `h2`).
+- **Tarjeta con un solo estado**: logueado → precio + neto/IVA + badge + botón; deslogueado → pill "Precio reservado" (`.price-hidden`), sin botón repetido. Banner único `.price-gate` sobre el grid.
+- `loginOpen`/`setLoginOpen` se movieron a `AuthContext` para que el banner pueda abrir el modal de login (Header ya no lo maneja localmente).
+
+#### Sistema visual
+- `index.css`: tokens `--radius-sm|md|lg` (6/8/12/16px) y `--shadow-sm|md|lg`.
+- `App.css`: ~40 `border-radius` en px normalizados a tokens (solo quedan `4px` en badges y `999px` en pills); hover de tarjeta con `--shadow-lg`.
+- `.loading` con spinner CSS + `prefers-reduced-motion`; `.empty-state` en flex column; `.metric-cards` con `auto-fit minmax(210px, 1fr)`.
+- **Corrección de alineación**: `.featured-section` tenía `padding: 0 1rem` y `max-width: 1200px`, dejando "Destacados" 16px más angosto que el hero y la grilla; `.featured-row` usaba `minmax(220px)` vs `260px` en `.product-grid` (tarjetas de distinto tamaño). Ambos unificados.
+
+#### Verificación
+- `npm run build` (tsc -b + vite) y `npm run lint` en verde. Revisión visual pendiente (el backend local debe correr con `DATABASE_URL` de Railway para poder iniciar sesión).

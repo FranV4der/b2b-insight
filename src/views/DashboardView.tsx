@@ -4,9 +4,21 @@ import { useApp } from '../context/AppContext.tsx'
 import { getQuoteStats } from '../services/api.ts'
 import type { QuoteStats } from '../services/api.ts'
 
+// Debe coincidir con QUOTE_STATUS_LABELS del backend (routes/quotes.ts).
+const QUOTE_STATUS: Record<string, { label: string; cls: string }> = {
+  pending: { label: 'Pendiente', cls: 'status-pending' },
+  approved: { label: 'Aprobada', cls: 'status-active' },
+  rejected: { label: 'Rechazada', cls: 'status-inactive' },
+  converted: { label: 'Convertida en pedido', cls: 'status-active' },
+}
+
+function quoteStatusMeta(status: string) {
+  return QUOTE_STATUS[status] ?? { label: status, cls: 'status-pending' }
+}
+
 export function DashboardView() {
   const { company } = useAuth()
-  const { navigate } = useApp()
+  const { gotoAdmin } = useApp()
   const [stats, setStats] = useState<QuoteStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -34,9 +46,6 @@ export function DashboardView() {
         <div>
           <h2>Dashboard</h2>
           <p className="dashboard-subtitle">{company?.name}</p>
-        </div>
-        <div className="dashboard-actions">
-          <button onClick={() => navigate('admin')}>Gestionar Productos</button>
         </div>
       </div>
 
@@ -105,7 +114,7 @@ export function DashboardView() {
       <div className="dashboard-section">
         <div className="section-header">
           <h3>Cotizaciones Recientes</h3>
-          <button onClick={() => navigate('admin')}>Ver todas</button>
+          <button onClick={() => gotoAdmin('quotes')}>Ver todas</button>
         </div>
 
         {!stats?.recentQuotes.length ? (
@@ -141,8 +150,8 @@ export function DashboardView() {
                   <td>{q.licitacionCode || '-'}</td>
                   <td>${Number(q.total).toLocaleString('es-CL')}</td>
                   <td>
-                    <span className={`status-badge ${q.status === 'pending' ? 'status-pending' : q.status === 'accepted' ? 'status-active' : 'status-inactive'}`}>
-                      {q.status === 'pending' ? 'Pendiente' : q.status === 'accepted' ? 'Aceptada' : 'Rechazada'}
+                    <span className={`status-badge ${quoteStatusMeta(q.status).cls}`}>
+                      {quoteStatusMeta(q.status).label}
                     </span>
                   </td>
                   <td>{new Date(q.createdAt).toLocaleDateString('es-CL')}</td>

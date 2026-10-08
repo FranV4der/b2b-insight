@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, useRef, ty
 import type { UserType } from '../types/user.ts'
 import type { View, QuoteItem } from '../types/quote.ts'
 import type { Product } from '../types/product.ts'
+import type { AdminTab } from '../types/panel.ts'
 import { useAuth } from './AuthContext.tsx'
 import { loadCart, saveCart, clearCart, purgeLegacyCart } from '../utils/cartStorage.ts'
 
@@ -14,11 +15,18 @@ interface AppState {
   selectedOrder: number | null
   storeSearch: string
   storeCategory: number | null
+  adminTab: AdminTab
+  /** Producto en edición en el formulario del panel (null = formulario vacío). */
+  editingProduct: Product | null
 }
 
 interface AppContextType extends AppState {
   setUserType: (t: UserType) => void
   navigate: (v: View) => void
+  /** Selecciona una sección del panel y descarta el producto en edición. */
+  gotoAdmin: (t: AdminTab) => void
+  /** Abre el formulario de producto con un producto a editar. */
+  editProduct: (p: Product) => void
   viewProduct: (product: Product) => void
   backToCatalog: () => void
   addItem: (product: Product, qty?: number) => void
@@ -50,6 +58,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       selectedOrder: null,
       storeSearch: '',
       storeCategory: null,
+      adminTab: 'list',
+      editingProduct: null,
     }
   })
 
@@ -89,6 +99,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const navigate = useCallback((view: View) => {
     setState((prev) => ({ ...prev, view }))
+  }, [])
+
+  // Navega al panel, selecciona una sección y descarta el producto en edición.
+  const gotoAdmin = useCallback((adminTab: AdminTab) => {
+    setState((prev) => ({ ...prev, view: 'admin', adminTab, editingProduct: null }))
+  }, [])
+
+  const editProduct = useCallback((editingProduct: Product) => {
+    setState((prev) => ({ ...prev, view: 'admin', adminTab: 'create', editingProduct }))
   }, [])
 
   const viewProduct = useCallback((product: Product) => {
@@ -166,6 +185,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...state,
         setUserType,
         navigate,
+        gotoAdmin,
+        editProduct,
         viewProduct,
         backToCatalog,
         addItem,

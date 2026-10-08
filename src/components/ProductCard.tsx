@@ -55,16 +55,18 @@ export function ProductCard({ product }: Props) {
               {userType && <span className="price-badge">{getPriceLabel(userType)}</span>}
             </>
           ) : (
-            <span className="price-hidden">Inicia sesión para ver el precio</span>
+            <span className="price-hidden">Precio reservado</span>
           )}
         </div>
-        <button
-          className={user ? (inQuote ? 'btn-in-quote' : outOfStock ? 'btn-out-of-stock' : '') : 'btn-login-required'}
-          onClick={user ? handleAddToQuote : undefined}
-          disabled={!user || outOfStock}
-        >
-          {!user ? 'Inicia sesión para comprar' : inQuote ? '✓ Ver en el carrito' : 'Agregar al carrito'}
-        </button>
+        {user && (
+          <button
+            className={inQuote ? 'btn-in-quote' : outOfStock ? 'btn-out-of-stock' : ''}
+            onClick={handleAddToQuote}
+            disabled={outOfStock}
+          >
+            {inQuote ? '✓ Ver en el carrito' : 'Agregar al carrito'}
+          </button>
+        )}
       </div>
     </article>
   )

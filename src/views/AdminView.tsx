@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Product } from '../types/product.ts'
+import type { AdminTab } from '../types/panel.ts'
 import { ProductForm } from '../components/ProductForm.tsx'
 import { ProductTable } from '../components/ProductTable.tsx'
 import { ExcelUploader } from '../components/ExcelUploader.tsx'
@@ -13,14 +14,38 @@ import { CompaniesManager } from '../components/CompaniesManager.tsx'
 import { CompanyProfile } from '../components/CompanyProfile.tsx'
 import { CustomersManager } from '../components/CustomersManager.tsx'
 import { useAuth } from '../context/AuthContext.tsx'
+import { useApp } from '../context/AppContext.tsx'
 
-type AdminTab = 'list' | 'create' | 'import' | 'categories' | 'brands' | 'users' | 'pricelists' | 'orders' | 'quotes' | 'companies' | 'customers'
+const TITLES: Record<AdminTab, string> = {
+  list: 'Productos',
+  create: 'Nuevo Producto',
+  import: 'Carga Masiva',
+  categories: 'Categorías',
+  brands: 'Marcas',
+  users: 'Usuarios',
+  pricelists: 'Listas de Precio',
+  orders: 'Órdenes',
+  quotes: 'Cotizaciones',
+  companies: 'Vendedores',
+  customers: 'Clientes',
+}
+
+const SUBTITLES: Partial<Record<AdminTab, string>> = {
+  list: 'Catálogo publicado y borradores',
+  import: 'Crea o actualiza productos desde una planilla Excel',
+  categories: 'Árbol de categorías del catálogo',
+  brands: 'Marcas disponibles para filtrar',
+  users: 'Usuarios del panel de gestión',
+  pricelists: 'Precios por canal para cada comprador',
+  orders: 'Pedidos que contienen tus productos',
+  quotes: 'Cotizaciones recibidas de tus compradores',
+  customers: 'Compradores que te atienden',
+}
 
 export function AdminView() {
   const { isEmpresa, isAdmin } = useAuth()
+  const { adminTab, editingProduct, gotoAdmin, editProduct } = useApp()
   const canManage = isEmpresa || isAdmin
-  const [tab, setTab] = useState<AdminTab>('list')
-  const [editing, setEditing] = useState<Product | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
 
   function refresh() {
@@ -28,154 +53,65 @@ export function AdminView() {
   }
 
   function handleEdit(product: Product) {
-    setEditing(product)
-    setTab('create')
+    editProduct(product)
   }
 
   function handleSaved() {
-    setEditing(null)
-    setTab('list')
+    gotoAdmin('list')
     refresh()
   }
 
   function handleCancel() {
-    setEditing(null)
-    setTab('list')
+    gotoAdmin('list')
   }
+
+  const title = adminTab === 'create' && editingProduct ? 'Editar Producto' : TITLES[adminTab]
+  const subtitle = adminTab === 'create' && editingProduct ? undefined : SUBTITLES[adminTab]
 
   return (
     <section className="admin-view">
-      <div className="admin-header">
-        <h2>Panel de Administración</h2>
-        <div className="admin-tabs">
-          <button
-            className={tab === 'list' ? 'tab-active' : ''}
-            onClick={() => { setTab('list'); setEditing(null) }}
-          >
-            Productos
-          </button>
-          <button
-            className={tab === 'create' && !editing ? 'tab-active' : ''}
-            onClick={() => { setTab('create'); setEditing(null) }}
-          >
-            Nuevo Producto
-          </button>
-          <button
-            className={tab === 'import' ? 'tab-active' : ''}
-            onClick={() => setTab('import')}
-          >
-            Carga Masiva
-          </button>
-          {canManage && (
-            <button
-              className={tab === 'categories' ? 'tab-active' : ''}
-              onClick={() => setTab('categories')}
-            >
-              Categorías
-            </button>
-          )}
-          {canManage && (
-            <button
-              className={tab === 'brands' ? 'tab-active' : ''}
-              onClick={() => setTab('brands')}
-            >
-              Marcas
-            </button>
-          )}
-          {canManage && (
-            <button
-              className={tab === 'users' ? 'tab-active' : ''}
-              onClick={() => setTab('users')}
-            >
-              Usuarios
-            </button>
-          )}
-          {canManage && (
-            <button
-              className={tab === 'pricelists' ? 'tab-active' : ''}
-              onClick={() => setTab('pricelists')}
-            >
-              Listas de Precio
-            </button>
-          )}
-          {canManage && (
-            <button
-              className={tab === 'orders' ? 'tab-active' : ''}
-              onClick={() => setTab('orders')}
-            >
-              Órdenes
-            </button>
-          )}
-          {canManage && (
-            <button
-              className={tab === 'quotes' ? 'tab-active' : ''}
-              onClick={() => setTab('quotes')}
-            >
-              Cotizaciones
-            </button>
-          )}
-          {isAdmin && (
-            <button
-              className={tab === 'companies' ? 'tab-active' : ''}
-              onClick={() => setTab('companies')}
-            >
-              Vendedores
-            </button>
-          )}
-          {isEmpresa && !isAdmin && (
-            <button
-              className={tab === 'companies' ? 'tab-active' : ''}
-              onClick={() => setTab('companies')}
-            >
-              Mi Empresa
-            </button>
-          )}
-          {canManage && (
-            <button
-              className={tab === 'customers' ? 'tab-active' : ''}
-              onClick={() => setTab('customers')}
-            >
-              Clientes
-            </button>
-          )}
+      <header className="panel-heading">
+        <div>
+          <h2>{title}</h2>
+          {subtitle && <p>{subtitle}</p>}
         </div>
-      </div>
+      </header>
 
       <div className="admin-content">
-        {tab === 'list' && (
+        {adminTab === 'list' && (
           <ProductTable onEdit={handleEdit} refreshKey={refreshKey} />
         )}
-        {tab === 'create' && (
-          <ProductForm product={editing} onSaved={handleSaved} onCancel={handleCancel} />
+        {adminTab === 'create' && (
+          <ProductForm product={editingProduct} onSaved={handleSaved} onCancel={handleCancel} />
         )}
-        {tab === 'import' && (
+        {adminTab === 'import' && (
           <ExcelUploader onImported={refresh} />
         )}
-        {tab === 'categories' && canManage && (
+        {adminTab === 'categories' && canManage && (
           <CategoryManager />
         )}
-        {tab === 'brands' && canManage && (
+        {adminTab === 'brands' && canManage && (
           <BrandManager />
         )}
-        {tab === 'users' && canManage && (
+        {adminTab === 'users' && canManage && (
           <UserManagement />
         )}
-        {tab === 'pricelists' && canManage && (
+        {adminTab === 'pricelists' && canManage && (
           <PriceListManager />
         )}
-        {tab === 'orders' && canManage && (
+        {adminTab === 'orders' && canManage && (
           <AdminOrders />
         )}
-        {tab === 'quotes' && canManage && (
+        {adminTab === 'quotes' && canManage && (
           <QuoteListManager />
         )}
-        {tab === 'companies' && isAdmin && (
+        {adminTab === 'companies' && isAdmin && (
           <CompaniesManager />
         )}
-        {tab === 'companies' && isEmpresa && !isAdmin && (
+        {adminTab === 'companies' && isEmpresa && !isAdmin && (
           <CompanyProfile />
         )}
-        {tab === 'customers' && canManage && (
+        {adminTab === 'customers' && canManage && (
           <CustomersManager />
         )}
       </div>

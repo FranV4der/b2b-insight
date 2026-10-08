@@ -1,0 +1,12 @@
+export type AdminTab =
+  | 'list'
+  | 'create'
+  | 'import'
+  | 'categories'
+  | 'brands'
+  | 'users'
+  | 'pricelists'
+  | 'orders'
+  | 'quotes'
+  | 'companies'
+  | 'customers'
