@@ -447,6 +447,7 @@ export function CustomersManager() {
     priceLists: PriceList[]
     error: string
   } | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -459,7 +460,9 @@ export function CustomersManager() {
         setData({ key: search, rows: [], priceLists: [], error: e instanceof Error ? e.message : 'Error al cargar' })
       })
     return () => { cancelled = true }
-  }, [search])
+  }, [search, reloadKey])
+
+  const reload = () => setReloadKey((k) => k + 1)
 
   const loading = data?.key !== search
   const rows = data?.rows ?? []
@@ -473,7 +476,7 @@ export function CustomersManager() {
     <div className="admin-panel">
       <h3>Compradores</h3>
       <p className="muted">Personas naturales y organizaciones que compran en la plataforma.</p>
-      <NewCustomerForm priceLists={priceLists} onCreated={() => setData((p) => (p ? { ...p, rows: [...p.rows] } : p))} />
+      <NewCustomerForm priceLists={priceLists} onCreated={reload} />
       <input
         type="text"
         placeholder="Buscar por nombre, email o RUT..."
@@ -496,7 +499,7 @@ export function CustomersManager() {
         </thead>
         <tbody>
           {rows.map((c) => (
-            <CustomerRow key={c.id} customer={c} priceLists={priceLists} onSave={() => setData((p) => (p ? { ...p, rows: [...p.rows] } : p))} />
+            <CustomerRow key={c.id} customer={c} priceLists={priceLists} onSave={reload} />
           ))}
           {rows.length === 0 && (
             <tr>
