@@ -210,8 +210,22 @@ export async function importProducts(file: File, confirm = false): Promise<Impor
   return res.json() as Promise<ImportPreview | ImportResult>
 }
 
-export function getTemplateUrl(): string {
-  return `${API_BASE}/products/template`
+function authHeaders(): Record<string, string> {
+  const token = getToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+export async function downloadTemplate(): Promise<{ blob: Blob; filename: string }> {
+  const res = await fetch(`${API_BASE}/products/template`, { headers: authHeaders() })
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    throw new Error(body?.error || `Error al descargar plantilla (${res.status})`)
+  }
+  const blob = await res.blob()
+  const cd = res.headers.get('Content-Disposition')
+  const match = cd?.match(/filename="?([^";]+)"?/)
+  const filename = match?.[1] || 'template_productos.xlsx'
+  return { blob, filename }
 }
 
 export interface UploadImage {
@@ -220,11 +234,6 @@ export interface UploadImage {
   url: string
   alt: string | null
   sortOrder: number
-}
-
-function authHeaders(): Record<string, string> {
-  const token = getToken()
-  return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
 export async function uploadCompanyLogo(

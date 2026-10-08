@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { importProducts, getTemplateUrl, type ImportPreview, type ImportResult } from '../services/api.ts'
+import { importProducts, downloadTemplate, type ImportPreview, type ImportResult } from '../services/api.ts'
 
 interface Props {
   onImported: () => void
@@ -67,6 +67,23 @@ export function ExcelUploader({ onImported }: Props) {
     }
   }
 
+  async function handleDownloadTemplate() {
+    setError(null)
+    try {
+      const { blob, filename } = await downloadTemplate()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 0)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al descargar plantilla')
+    }
+  }
+
   function handleReset() {
     setFile(null)
     setPreview(null)
@@ -79,7 +96,7 @@ export function ExcelUploader({ onImported }: Props) {
     <div className="excel-uploader">
       <div className="uploader-header">
         <h3>Carga Masiva de Productos</h3>
-        <a href={getTemplateUrl()} className="template-link" download>Descargar plantilla Excel</a>
+        <button type="button" className="template-link" onClick={handleDownloadTemplate}>Descargar plantilla Excel</button>
       </div>
 
       {!file && (
