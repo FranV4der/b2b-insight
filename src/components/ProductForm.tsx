@@ -81,6 +81,9 @@ export function ProductForm({ product, onSaved, onCancel }: Props) {
 
   const [pendingImages, setPendingImages] = useState<{ file: File; url: string }[]>([])
 
+  const [pendingDocs, setPendingDocs] = useState<{ file: File; docType: ProductDocType }[]>([])
+  const [pendingPdf, setPendingPdf] = useState<File | null>(null)
+
   const [docs, setDocs] = useState<ProductDocument[]>(product?.documents || [])
   const [docType, setDocType] = useState<ProductDocType>('hoja_seguridad')
   const [uploadingDocs, setUploadingDocs] = useState(false)
@@ -161,6 +164,25 @@ export function ProductForm({ product, onSaved, onCancel }: Props) {
       if (target) URL.revokeObjectURL(target.url)
       return prev.filter((_, i) => i !== index)
     })
+  }
+
+  function handlePendingDocUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files
+    if (!files?.length) return
+    const entries = Array.from(files).map((file) => ({ file, docType }))
+    setPendingDocs((prev) => [...prev, ...entries])
+    if (docInputRef.current) docInputRef.current.value = ''
+  }
+
+  function removePendingDoc(index: number) {
+    setPendingDocs((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  function handlePendingPdf(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPendingPdf(file)
+    if (pdfInputRef.current) pdfInputRef.current.value = ''
   }
 
   async function handleDeleteImage(imageId: number) {
@@ -268,13 +290,27 @@ export function ProductForm({ product, onSaved, onCancel }: Props) {
         if (pendingImages.length > 0) {
           await uploadImages(created.id, pendingImages.map((p) => p.file))
         }
+        if (pendingDocs.length > 0) {
+          const grouped = new Map<ProductDocType, File[]>()
+          for (const d of pendingDocs) {
+            const arr = grouped.get(d.docType) ?? []
+            arr.push(d.file)
+            grouped.set(d.docType, arr)
+          }
+          for (const [type, files] of grouped) {
+            await uploadDocuments(created.id, files, type)
+          }
+        }
+        if (pendingPdf) {
+          await uploadTechnicalSheet(created.id, pendingPdf)
+        }
       }
       onSaved()
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error al guardar'
       setError(
         createdId
-          ? `Producto creado, pero falló la subida de fotos: ${msg}`
+          ? `Producto creado, pero falló la subida de fotos/PDFs: ${msg}`
           : msg,
       )
       if (createdId) onSaved()
@@ -467,7 +503,7 @@ export function ProductForm({ product, onSaved, onCancel }: Props) {
         )}
       </div>
 
-      {product && (
+      {product ? (
         <>
           <div className="form-section">
             <h4>Documentos adicionales (PDF)</h4>
@@ -529,6 +565,68 @@ export function ProductForm({ product, onSaved, onCancel }: Props) {
                 ) : (
                   <p>Haz clic para subir un archivo PDF</p>
                 )}
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="form-section">
+            <h4>Documentos adicionales (PDF)</h4>
+            <p className="form-hint">
+              Hojas de seguridad, manuales y otras fichas. Se subirán al guardar el producto.
+            </p>
+            <div className="form-field">
+              <label htmlFor="pf-doctype-new">Tipo de documento</label>
+              <select id="pf-doctype-new" value={docType} onChange={(e) => setDocType(e.target.value as ProductDocType)}>
+                <option value="hoja_seguridad">Hoja de seguridad</option>
+                <option value="manual">Manual</option>
+                <option value="ficha_tecnica">Ficha técnica</option>
+                <option value="otro">Otro</option>
+              </select>
+            </div>
+            <div className="image-upload-zone" onClick={() => docInputRef.current?.click()}>
+              <input
+                ref={docInputRef}
+                type="file"
+                accept="application/pdf"
+                multiple
+                onChange={handlePendingDocUpload}
+                hidden
+              />
+              <p>Haz clic para elegir uno o varios PDF (máx. 10MB c/u)</p>
+            </div>
+            {pendingDocs.length > 0 && (
+              <ul className="doc-manage-list">
+                {pendingDocs.map((d, i) => (
+                  <li key={i}>
+                    <span>{d.file.name}</span>
+                    <button type="button" className="pdf-delete-btn" onClick={() => removePendingDoc(i)}>
+                      Eliminar
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="form-section">
+            <h4>Ficha Técnica (PDF)</h4>
+            {pendingPdf ? (
+              <div className="pdf-existing">
+                <span>📄 {pendingPdf.name}</span>
+                <button type="button" className="pdf-delete-btn" onClick={() => setPendingPdf(null)}>Eliminar</button>
+              </div>
+            ) : (
+              <div className="image-upload-zone" onClick={() => pdfInputRef.current?.click()}>
+                <input
+                  ref={pdfInputRef}
+                  type="file"
+                  accept="application/pdf"
+                  onChange={handlePendingPdf}
+                  hidden
+                />
+                <p>Haz clic para elegir un archivo PDF</p>
               </div>
             )}
           </div>
