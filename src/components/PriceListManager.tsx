@@ -164,8 +164,8 @@ export function PriceListManager() {
         </form>
       )}
 
-      <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="pl-layout">
+        <div>
           <table className="product-table">
             <thead>
               <tr>
@@ -181,7 +181,6 @@ export function PriceListManager() {
                   <td>
                     <button
                       className="back-btn"
-                      style={{ padding: 0, margin: 0, cursor: 'pointer' }}
                       onClick={() => loadListDetail(l.id)}
                     >
                       {l.name}
@@ -210,7 +209,7 @@ export function PriceListManager() {
         </div>
 
         {selectedList && (
-          <div style={{ flex: 2, minWidth: 0 }}>
+          <div>
             <div className="user-mgmt-header">
               <h4 style={{ margin: 0 }}>{selectedList.name}</h4>
             </div>
@@ -226,7 +225,7 @@ export function PriceListManager() {
               onAdd={handleAddItems}
             />
 
-            <table className="product-table">
+            <table className="product-table pl-list-table">
               <thead>
                 <tr>
                   <th>SKU</th>
@@ -285,26 +284,28 @@ function AddProductForm({
   }
 
   return (
-    <div className="form-grid" style={{ marginBottom: '1rem', padding: '0.75rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-      <div className="form-field">
-        <label>Producto</label>
-        <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)}>
-          <option value="">Seleccionar...</option>
-          {available.map((p) => (
-            <option key={p.id} value={p.id}>{p.sku} - {p.name}</option>
-          ))}
-        </select>
-      </div>
-      <div className="form-field">
-        <label>Precio</label>
-        <input type="number" step="1" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0" />
-      </div>
-      <div className="form-field">
-        <label>Dto. %</label>
-        <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0" />
-      </div>
-      <div className="form-field" style={{ alignSelf: 'flex-end' }}>
-        <button className="send-quote-btn" onClick={handleAdd}>Agregar</button>
+    <div className="pl-popup-card">
+      <div className="form-grid">
+        <div className="form-field">
+          <label>Producto</label>
+          <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)}>
+            <option value="">Seleccionar...</option>
+            {available.map((p) => (
+              <option key={p.id} value={p.id}>{p.sku} - {p.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="form-field">
+          <label>Precio</label>
+          <input type="number" step="1" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0" />
+        </div>
+        <div className="form-field">
+          <label>Dto. %</label>
+          <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0" />
+        </div>
+        <div className="form-field" style={{ alignSelf: 'flex-end' }}>
+          <button className="send-quote-btn" onClick={handleAdd}>Agregar</button>
+        </div>
       </div>
     </div>
   )
@@ -334,8 +335,12 @@ function PriceListItemRow({
       <td>{item.productName || `Producto #${item.productId}`}</td>
       {editing ? (
         <>
-          <td><input type="number" step="1" value={price} onChange={(e) => setPrice(e.target.value)} style={{ width: '100px' }} /></td>
-          <td><input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} style={{ width: '60px' }} /></td>
+          <td colSpan={2}>
+            <div className="pl-item-edit">
+              <input name="price" type="number" step="1" value={price} onChange={(e) => setPrice(e.target.value)} />
+              <input name="discount" type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} />
+            </div>
+          </td>
           <td className="actions-cell">
             <button className="table-btn" onClick={handleSave}>Guardar</button>
             <button className="table-btn table-btn-danger" onClick={() => setEditing(false)}>Cancelar</button>

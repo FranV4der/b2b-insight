@@ -800,6 +800,7 @@ main {
   min-width: 120px;
   font-size: 0.8125rem;
   padding: 0.3rem 0.5rem;
+  padding-right: 1.6rem;
 }
 
 .company-name {
@@ -1017,7 +1018,8 @@ main {
   margin-bottom: 1rem;
 }
 
-.uploader-header h3 {
+.uploader-header h3,
+.uploader-header h4 {
   margin: 0;
 }
 
@@ -1038,24 +1040,39 @@ main {
 
 .drop-zone {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.5rem;
   padding: 3rem;
   border: 2px dashed var(--border);
   border-radius: var(--radius);
   background: var(--bg-secondary);
   cursor: pointer;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, background 0.2s;
 
-  &:hover {
+  &:hover,
+  &.drag-over {
     border-color: var(--primary);
+    background: var(--primary-light);
   }
 
   p {
     color: var(--text-light);
     font-size: 0.875rem;
     margin: 0;
+    text-align: center;
   }
+}
+
+.drop-zone .drop-title {
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
+.drop-zone .muted {
+  font-size: 0.75rem;
+  color: var(--text-light);
 }
 
 .uploader-status {
@@ -2019,8 +2036,49 @@ main {
   font-style: italic;
 }
 
+/* ─── Price List Manager ─── */
+.pl-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(0, 2.2fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.pl-popup-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+  padding: 1rem;
+
+  .form-grid {
+    gap: 0.875rem;
+  }
+}
+
+.pl-item-edit {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+
+  input {
+    width: 92px;
+  }
+
+  input[name="discount"] {
+    width: 64px;
+  }
+}
+
+.pl-list-table {
+  margin-top: 0.5rem;
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 768px) {
+  .pl-layout {
+    grid-template-columns: 1fr;
+  }
+
   .home-options {
     grid-template-columns: 1fr;
   }
@@ -2549,6 +2607,7 @@ main {
 
 .status-select {
   padding: 0.3rem 0.5rem;
+  padding-right: 1.6rem;
   border-radius: 8px;
   font-size: 0.8rem;
   font-weight: 600;

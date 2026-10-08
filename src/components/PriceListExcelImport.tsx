@@ -18,6 +18,7 @@ export function PriceListExcelImport({ priceListId, onImported }: Props) {
   const [result, setResult] = useState<PriceListImportResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState(false)
 
   function reset() {
     setFile(null)
@@ -99,7 +100,7 @@ export function PriceListExcelImport({ priceListId, onImported }: Props) {
   return (
     <div className="excel-uploader">
       <div className="uploader-header">
-        <h4 style={{ margin: 0 }}>Carga masiva de precios (Excel)</h4>
+        <h4>Carga masiva de precios (Excel)</h4>
         <button type="button" className="template-link" onClick={handleDownloadTemplate}>
           Descargar plantilla
         </button>
@@ -107,12 +108,20 @@ export function PriceListExcelImport({ priceListId, onImported }: Props) {
 
       {!file && (
         <div
-          className="drop-zone"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={handleDrop}
+          className={`drop-zone${dragOver ? ' drag-over' : ''}`}
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDragOver(true)
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setDragOver(false)
+            handleDrop(e)
+          }}
           onClick={() => fileRef.current?.click()}
         >
-          <p>Arrastra un archivo .xlsx aquí o haz click para seleccionar</p>
+          <p className="drop-title">Arrastra un archivo .xlsx aquí o haz click para seleccionar</p>
           <p className="muted">Columnas: SKU | Precio | Descuento % (opcional) | Cantidad Mínima (opcional)</p>
           <input
             ref={fileRef}
