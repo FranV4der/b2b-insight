@@ -124,7 +124,7 @@ async function createCompany() {
          (name, slug, legal_name, business_activity, rut, address, commune, region,
           phone, email, website, logo_url, contact_name, contact_role, contact_email,
           contact_phone, status, approved_at)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16, now())
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17, now())
        returning id, name, slug, rut, status`,
       [
         name,
