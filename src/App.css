@@ -1008,7 +1008,9 @@ main {
 
 /* ─── Excel Uploader ─── */
 .excel-uploader {
-  max-width: 720px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .uploader-header {
@@ -2039,9 +2041,151 @@ main {
 /* ─── Price List Manager ─── */
 .pl-layout {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(0, 2.2fr);
+  grid-template-columns: 290px minmax(0, 1fr);
   gap: 1.5rem;
   align-items: start;
+}
+
+.pl-sidebar {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.pl-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+
+  span {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-light);
+  }
+}
+
+.pl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.pl-list > li {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.pl-list-item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.7rem 1rem;
+  border: none;
+  border-radius: 0;
+  background: var(--bg);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &:hover {
+    background: var(--bg-secondary);
+  }
+
+  &.selected {
+    background: var(--primary-light);
+  }
+
+  .pl-list-item-info {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .pl-list-item-name {
+    font-weight: 600;
+    color: var(--text-heading);
+    font-size: 0.875rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.pl-list-item-delete {
+  border: none;
+  background: none;
+  color: var(--text-light);
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  flex-shrink: 0;
+
+  &:hover {
+    background: #fef2f2;
+    color: var(--danger);
+  }
+}
+
+.pl-panel {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  padding: 1.25rem;
+  overflow: hidden;
+}
+
+.pl-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+
+  h4 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--text-heading);
+  }
+}
+
+.pl-section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-light);
+  margin: 1.25rem 0 0.5rem;
+}
+
+.pl-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.pl-empty {
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: var(--text-light);
+  font-size: 0.875rem;
 }
 
 .pl-popup-card {

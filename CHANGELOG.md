@@ -572,3 +572,8 @@ Las listas de precio ya no requieren alta de ítems uno a uno: se sube un Excel 
 - `src/services/api.ts`: `importPriceListPrices(priceListId, file, confirm)` y `downloadPriceListTemplate(priceListId)`.
 - Nuevo `src/components/PriceListExcelImport.tsx`: dropzone/selector de archivo, vista previa (tabla con precios a insertar, SKUs sin match, errores), confirmación y resultado; botón de plantilla.
 - `src/components/PriceListManager.tsx`: el importador se muestra en el detalle de cada lista.
+
+#### UI/UX
+- Estilo global para `select` y `textarea` en `index.css` (antes solo `input`): ahora comparten padding, borde y focus + flecha custom, arreglando la apariencia nativa de **todos** los selects de la app (formularios, CustomersManager, ProductForm, filtros de orders/quotes). Overrides de `padding-right` en `.status-select` y `.table-select`.
+- Rediseño del módulo de Listas de Precio (`.pl-*`): **sidebar** de listas como cards seleccionables (badge canal, botón ✕) + **panel de detalle** con `min-width: 0`/`overflow hidden` y secciones separadas (carga masiva, agregar producto, precios). Se corrigió el desbordamiento del uploader sobre la tabla: se quitó `max-width: 720px` fijo y la tabla de precios usa contenedor `overflow-x: auto` (`.pl-table-scroll`). Responsivo a 1 columna en <768px.
+- `PriceListExcelImport.tsx`: dropzone con estado `drag-over`, título/hint estilizados.

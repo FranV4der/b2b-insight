@@ -133,7 +133,7 @@ export function PriceListManager() {
   if (loading) return <div className="loading">Cargando listas de precio...</div>
 
   return (
-    <div className="user-management">
+    <div className="user-management" style={{ maxWidth: 1100 }}>
       <div className="user-mgmt-header">
         <h3>Listas de Precio</h3>
         <button className="send-quote-btn" onClick={() => setShowForm(!showForm)}>
@@ -165,92 +165,97 @@ export function PriceListManager() {
       )}
 
       <div className="pl-layout">
-        <div>
-          <table className="product-table">
-            <thead>
-              <tr>
-                <th>Nombre</th>
-                <th>Tipo</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lists.map((l) => (
-                <tr key={l.id}>
-                  <td>
-                    <button
-                      className="back-btn"
-                      onClick={() => loadListDetail(l.id)}
-                    >
-                      {l.name}
-                    </button>
-                  </td>
-                  <td>
+        <aside className="pl-sidebar">
+          <div className="pl-sidebar-header">
+            <span>Listas ({lists.length})</span>
+          </div>
+          <ul className="pl-list">
+            {lists.map((l) => (
+              <li key={l.id}>
+                <button
+                  className={`pl-list-item${selectedList?.id === l.id ? ' selected' : ''}`}
+                  onClick={() => loadListDetail(l.id)}
+                >
+                  <span className="pl-list-item-info">
+                    <span className="pl-list-item-name">{l.name}</span>
                     <span className={`role-badge ${l.channel === 'chilecompra' ? 'role-admin' : 'role-buyer'}`}>
                       {l.channel === 'chilecompra' ? 'ChileCompra' : 'Normal'}
                     </span>
-                  </td>
-                  <td>
-                    <span className={`status-badge ${l.isActive ? 'status-active' : 'status-inactive'}`}>
-                      {l.isActive ? 'Activa' : 'Inactiva'}
-                    </span>
-                  </td>
-                  <td className="actions-cell">
-                    <button className="table-btn table-btn-danger" onClick={() => handleDelete(l.id)}>Eliminar</button>
-                  </td>
-                </tr>
-              ))}
-              {lists.length === 0 && (
-                <tr><td colSpan={4} className="empty-cell">No hay listas de precio</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                  </span>
+                </button>
+                <button
+                  className="pl-list-item-delete"
+                  title="Eliminar lista"
+                  onClick={() => handleDelete(l.id)}
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+            {lists.length === 0 && (
+              <li className="pl-empty">No hay listas de precio</li>
+            )}
+          </ul>
+        </aside>
 
-        {selectedList && (
-          <div>
-            <div className="user-mgmt-header">
-              <h4 style={{ margin: 0 }}>{selectedList.name}</h4>
-            </div>
+        <section className="pl-panel">
+          {!selectedList ? (
+            <div className="pl-empty">Selecciona una lista de la izquierda para ver y editar sus precios.</div>
+          ) : (
+            <>
+              <div className="pl-panel-header">
+                <h4>{selectedList.name}</h4>
+                <span className={`role-badge ${selectedList.channel === 'chilecompra' ? 'role-admin' : 'role-buyer'}`}>
+                  {selectedList.channel === 'chilecompra' ? 'ChileCompra' : 'Normal'}
+                </span>
+                <span className={`status-badge ${selectedList.isActive ? 'status-active' : 'status-inactive'}`}>
+                  {selectedList.isActive ? 'Activa' : 'Inactiva'}
+                </span>
+              </div>
 
-            <PriceListExcelImport
-              priceListId={selectedList.id}
-              onImported={() => loadListDetail(selectedList.id)}
-            />
+              <div className="pl-section-title">Carga masiva de precios</div>
+              <PriceListExcelImport
+                priceListId={selectedList.id}
+                onImported={() => loadListDetail(selectedList.id)}
+              />
 
-            <AddProductForm
-              products={products}
-              existingIds={selectedList.items.map((i) => i.productId)}
-              onAdd={handleAddItems}
-            />
+              <div className="pl-section-title">Agregar producto</div>
+              <AddProductForm
+                products={products}
+                existingIds={selectedList.items.map((i) => i.productId)}
+                onAdd={handleAddItems}
+              />
 
-            <table className="product-table pl-list-table">
-              <thead>
-                <tr>
-                  <th>SKU</th>
-                  <th>Producto</th>
-                  <th>Precio</th>
-                  <th>Dto %</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedList.items.map((item) => (
-                  <PriceListItemRow
-                    key={item.id}
-                    item={item}
-                    onUpdate={handleUpdateItem}
-                    onDelete={handleDeleteItem}
-                  />
-                ))}
-                {selectedList.items.length === 0 && (
-                  <tr><td colSpan={5} className="empty-cell">Sin productos</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
+              <div className="pl-section-title">Precios en la lista ({selectedList.items.length})</div>
+              <div className="pl-table-scroll">
+                <table className="product-table pl-list-table">
+                  <thead>
+                    <tr>
+                      <th>SKU</th>
+                      <th>Producto</th>
+                      <th>Precio</th>
+                      <th>Dto %</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedList.items.map((item) => (
+                      <PriceListItemRow
+                        key={item.id}
+                        item={item}
+                        onUpdate={handleUpdateItem}
+                        onDelete={handleDeleteItem}
+                      />
+                    ))}
+                    {selectedList.items.length === 0 && (
+                      <tr><td colSpan={5} className="empty-cell">Sin productos</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </section>
       </div>
     </div>
   )
