@@ -4,6 +4,7 @@ import * as XLSX from "xlsx";
 import { db } from "../db/index.js";
 import { products, productCategories, categories } from "../db/schema.js";
 import { eq } from "drizzle-orm";
+import { requireAuth, requireEmpresa } from "../middleware/auth.js";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -152,7 +153,7 @@ async function resolveCategories(categoryNames: string[]): Promise<Map<string, n
   return result;
 }
 
-importRouter.post("/import", upload.single("file"), async (req, res) => {
+importRouter.post("/import", requireAuth, requireEmpresa, upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
       res.status(400).json({ error: "No file uploaded" });
@@ -288,7 +289,7 @@ importRouter.post("/import", upload.single("file"), async (req, res) => {
   }
 });
 
-importRouter.get("/template", (_req, res) => {
+importRouter.get("/template", requireAuth, requireEmpresa, (_req, res) => {
   const headers = [
     "SKU",
     "Nombre",
