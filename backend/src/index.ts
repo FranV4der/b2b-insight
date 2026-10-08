@@ -72,8 +72,8 @@ app.use(globalLimiter);
 
 app.use("/api/auth", authLimiter, authRouter);
 
-app.use("/api/products", productsRouter);
 app.use("/api/products", requireAuth, requireEmpresa, importRouter);
+app.use("/api/products", productsRouter);
 
 app.use("/api/categories", categoriesRouter);
 app.use("/api/brands", brandsRouter);
