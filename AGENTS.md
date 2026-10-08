@@ -114,6 +114,8 @@ Frontend (Vercel)              Backend (Railway)              PostgreSQL (Railwa
 | DELETE | `/api/products/:id` | Eliminar producto |
 | POST | `/api/products/import` | Importar Excel (preview + confirm) |
 | GET | `/api/products/template` | Descargar plantilla Excel |
+| POST | `/api/price-lists/:id/import-prices` | Carga masiva de precios en una lista desde Excel (preview + confirm; matchea por SKU contra productos del mismo vendedor, upsert) |
+| GET | `/api/price-lists/:id/template` | Descargar plantilla Excel de precios (SKU, Precio, Descuento %, Cantidad Mínima) |
 | POST | `/api/orders` | Crear pedido (valida stock, **límite de crédito** y precios server-side, IVA 19%, comprador active; suma el total a `customers.credit_used`) |
 | GET | `/api/orders` | Listar pedidos del comprador (paginado; `admin` ve todos) |
 | GET | `/api/orders/:id` | Detalle de pedido con ítems |
@@ -276,4 +278,4 @@ Ambos punteros son **nullable** (`ON DELETE SET NULL`): borrar un vendedor o com
 - Cambiar el password temporal de `admin@imex.cl` (fue reseteado a `imex-admin-temp-2026` para las pruebas)
 - Conectar con ERP Microsoft Dynamics para inserción de datos
 - Verificación visual del PDF generado en producción
-- Aplicar en producción la migración multi-canal (`npm run db:migrate-price-lists` + `db:push`) y verificar asignaciones por cliente
+- Probar la carga masiva de precios Excel (`POST /api/price-lists/:id/import-prices`) con datos reales de IMEX

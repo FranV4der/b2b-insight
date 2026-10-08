@@ -554,3 +554,21 @@ Rediseño del modelo de precios: un comprador puede tener varias listas de preci
 
 #### Despliegue
 - Orden requerido en Railway: `npm run db:migrate-price-lists` → `db:push` → push a `main` (el build no migra).
+- Aplicado en producción (commit `e965aa2`): migración multi-canal + `db:push --force` sobre la BD de Railway; backend y frontend sirviendo el nuevo bundle.
+
+---
+
+## Fase 6 (2026-10-08): Carga masiva de precios por Excel
+
+Las listas de precio ya no requieren alta de ítems uno a uno: se sube un Excel y se crea/actualiza todo de una vez.
+
+#### Backend (`src/routes/priceLists.ts`)
+- `POST /api/price-lists/:id/import-prices` (multipart, `upload.single('file')`): parsea el Excel con `xlsx`, header normalizado con sinónimos en español (SKU/código, Precio, Descuento %, Cantidad Mínima). Flujo **preview + confirm** como en `/products/import`:
+  - `status:'preview'` → filas válidas, SKUs sin coincidencia (se matchea por SKU contra productos del **mismo vendedor** que la lista), preview de las primeras 10 y errores.
+  - `status:'completed'` → upsert en `price_list_items` (insert o update por ítem), devuelve `inserted`, `updated`, `unmatched_skus`, `errors`.
+- `GET /api/price-lists/:id/template` → descarga plantilla `.xlsx` con columnas `SKU | Precio | Descuento % | Cantidad Mínima` y una fila de ejemplo.
+
+#### Frontend
+- `src/services/api.ts`: `importPriceListPrices(priceListId, file, confirm)` y `downloadPriceListTemplate(priceListId)`.
+- Nuevo `src/components/PriceListExcelImport.tsx`: dropzone/selector de archivo, vista previa (tabla con precios a insertar, SKUs sin match, errores), confirmación y resultado; botón de plantilla.
+- `src/components/PriceListManager.tsx`: el importador se muestra en el detalle de cada lista.

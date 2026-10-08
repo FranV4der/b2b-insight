@@ -211,6 +211,64 @@ export async function importProducts(file: File, confirm = false): Promise<Impor
   return res.json() as Promise<ImportPreview | ImportResult>
 }
 
+export interface PriceListImportPreview {
+  status: 'preview'
+  total_rows: number
+  valid_rows: number
+  unmatched_skus: string[]
+  errors: string[]
+  preview: Array<{
+    sku: string
+    productName: string
+    price: number
+    discount?: number
+    minQuantity?: number
+  }>
+}
+
+export interface PriceListImportResult {
+  status: 'completed'
+  inserted: number
+  updated: number
+  unmatched_skus?: string[]
+  errors: string[]
+}
+
+export async function importPriceListPrices(
+  priceListId: number,
+  file: File,
+  confirm = false,
+): Promise<PriceListImportPreview | PriceListImportResult> {
+  const formData = new FormData()
+  formData.append('file', file)
+  if (confirm) formData.append('confirm', 'true')
+
+  const res = await fetch(`${API_BASE}/price-lists/${priceListId}/import-prices`, {
+    method: 'POST',
+    body: formData,
+  })
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    throw new Error(body?.error || `Import error: ${res.status}`)
+  }
+
+  return res.json() as Promise<PriceListImportPreview | PriceListImportResult>
+}
+
+export async function downloadPriceListTemplate(priceListId: number): Promise<{ blob: Blob; filename: string }> {
+  const res = await fetch(`${API_BASE}/price-lists/${priceListId}/template`, { headers: authHeaders() })
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    throw new Error(body?.error || `Error al descargar plantilla (${res.status})`)
+  }
+  const blob = await res.blob()
+  const cd = res.headers.get('Content-Disposition')
+  const match = cd?.match(/filename="?([^";]+)"?/)
+  const filename = match?.[1] || 'template_lista_precios.xlsx'
+  return { blob, filename }
+}
+
 function authHeaders(): Record<string, string> {
   const token = getToken()
   return token ? { Authorization: `Bearer ${token}` } : {}

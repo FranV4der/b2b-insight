@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { PriceList, PriceListDetail, PriceListItem } from '../types/auth.ts'
 import type { Product } from '../types/product.ts'
 import { getProducts } from '../services/api.ts'
+import { PriceListExcelImport } from './PriceListExcelImport.tsx'
 
 const API_BASE = '/api'
 
@@ -213,6 +214,11 @@ export function PriceListManager() {
             <div className="user-mgmt-header">
               <h4 style={{ margin: 0 }}>{selectedList.name}</h4>
             </div>
+
+            <PriceListExcelImport
+              priceListId={selectedList.id}
+              onImported={() => loadListDetail(selectedList.id)}
+            />
 
             <AddProductForm
               products={products}

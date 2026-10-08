@@ -1,8 +1,12 @@
 import { Router } from "express";
+import multer from "multer";
+import * as XLSX from "xlsx";
 import { db } from "../db/index.js";
 import { priceLists, priceListItems, products } from "../db/schema.js";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { requireAuth, requireEmpresa, isAdminRequest, scopeCompanyId } from "../middleware/auth.js";
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 export const priceListsRouter = Router();
 
@@ -249,5 +253,243 @@ priceListsRouter.delete("/items/:itemId", async (req, res) => {
   } catch (error) {
     console.error("DELETE /price-lists/items/:itemId error:", error);
     res.status(500).json({ error: "Error al eliminar item" });
+  }
+});
+
+// ─── Carga masiva de precios por Excel ─────────────────────
+
+const PRICE_HEADERS: Record<string, string> = {
+  sku: "sku",
+  código: "sku",
+  codigo: "sku",
+  cod: "sku",
+  precio: "price",
+  precio_lista: "price",
+  price: "price",
+  "precio (clp)": "price",
+  descuento: "discount",
+  dto: "discount",
+  "descuento %": "discount",
+  "dto %": "discount",
+  discount: "discount",
+  cantidad_minima: "minQuantity",
+  "cantidad mínima": "minQuantity",
+  "cantidad minima": "minQuantity",
+  minquantity: "minQuantity",
+  "min quantity": "minQuantity",
+};
+
+function normalizePriceHeader(header: string): string {
+  return PRICE_HEADERS[header.toLowerCase().trim()] || header.toLowerCase().trim();
+}
+
+interface PriceImportRow {
+  sku: string;
+  price: number;
+  discount?: number;
+  minQuantity?: number;
+}
+
+function parsePriceRows(rows: unknown[]): { normalized: PriceImportRow[]; errors: string[] } {
+  const errors: string[] = [];
+  const normalized: PriceImportRow[] = [];
+
+  if (!rows.length) {
+    errors.push("El archivo está vacío");
+    return { normalized, errors };
+  }
+
+  const firstRow = rows[0] as Record<string, unknown>;
+  const headers = Object.keys(firstRow);
+  const mappedHeaders = headers.map(normalizePriceHeader);
+
+  if (!mappedHeaders.includes("sku") || !mappedHeaders.includes("price")) {
+    const missing: string[] = [];
+    if (!mappedHeaders.includes("sku")) missing.push("SKU");
+    if (!mappedHeaders.includes("price")) missing.push("Precio");
+    errors.push(`Faltan columnas requeridas: ${missing.join(", ")}`);
+    return { normalized, errors };
+  }
+
+  rows.forEach((row, index) => {
+    const data = row as Record<string, unknown>;
+    const rowNum = index + 2;
+
+    const entries = mappedHeaders.map((key, i) => [key, data[headers[i]]] as [string, unknown]);
+    const obj = Object.fromEntries(entries);
+
+    const sku = obj.sku ? String(obj.sku).trim() : "";
+    if (!sku) {
+      errors.push(`Fila ${rowNum}: SKU vacío`);
+      return;
+    }
+    if (obj.price === undefined || obj.price === null || obj.price === "") {
+      errors.push(`Fila ${rowNum}: Precio vacío`);
+      return;
+    }
+    const price = Math.round(Number(obj.price));
+    if (isNaN(price) || price < 0) {
+      errors.push(`Fila ${rowNum}: Precio inválido (${obj.price})`);
+      return;
+    }
+
+    let discount: number | undefined;
+    if (obj.discount !== undefined && obj.discount !== null && String(obj.discount).trim() !== "") {
+      const d = Number(obj.discount);
+      if (isNaN(d) || d < 0 || d > 100) {
+        errors.push(`Fila ${rowNum}: Descuento inválido (${obj.discount})`);
+        return;
+      }
+      discount = d;
+    }
+
+    let minQuantity: number | undefined;
+    if (obj.minQuantity !== undefined && obj.minQuantity !== null && String(obj.minQuantity).trim() !== "") {
+      const q = Number(obj.minQuantity);
+      if (isNaN(q) || q < 1) {
+        errors.push(`Fila ${rowNum}: Cantidad mínima inválida (${obj.minQuantity})`);
+        return;
+      }
+      minQuantity = Math.round(q);
+    }
+
+    normalized.push({ sku, price, discount, minQuantity });
+  });
+
+  return { normalized, errors };
+}
+
+priceListsRouter.get("/:id/template", async (_req, res) => {
+  const ws = XLSX.utils.aoa_to_sheet([
+    ["SKU", "Precio", "Descuento %", "Cantidad Mínima"],
+    ["EJ-001", 10000, 5, 10],
+  ]);
+  ws["!cols"] = [{ wch: 16 }, { wch: 12 }, { wch: 14 }, { wch: 18 }];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Precios");
+
+  const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", "attachment; filename=template_lista_precios.xlsx");
+  res.send(Buffer.from(buffer));
+});
+
+priceListsRouter.post("/:id/import-prices", upload.single("file"), async (req, res) => {
+  try {
+    const priceListId = Number(req.params.id);
+    const [list] = await db
+      .select()
+      .from(priceLists)
+      .where(scopedList(priceListId, req.auth));
+    if (!list) {
+      res.status(404).json({ error: "Lista de precio no encontrada" });
+      return;
+    }
+    if (!req.file) {
+      res.status(400).json({ error: "No se subió archivo" });
+      return;
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) {
+      res.status(400).json({ error: "El archivo no tiene hojas" });
+      return;
+    }
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+    const { normalized, errors } = parsePriceRows(rows);
+
+    // Los precios se aplican a productos del MISMO vendedor que la lista.
+    const matchedBySku = new Map<string, { id: number; sku: string; name: string }>();
+    if (normalized.length && list.companyId != null) {
+      const skus = Array.from(new Set(normalized.map((r) => r.sku)));
+      const productRows = await db
+        .select({ id: products.id, sku: products.sku, name: products.name })
+        .from(products)
+        .where(and(eq(products.companyId, list.companyId), inArray(products.sku, skus)));
+      for (const p of productRows) matchedBySku.set(p.sku, p);
+    }
+
+    const unmatchedSkus = Array.from(
+      new Set(normalized.filter((r) => !matchedBySku.has(r.sku)).map((r) => r.sku))
+    );
+    const validRows = normalized.filter((r) => matchedBySku.has(r.sku));
+
+    if (errors.length && !validRows.length) {
+      res.status(400).json({ error: "Errores de validación", details: errors });
+      return;
+    }
+
+    const confirm = req.body.confirm === "true" || req.body.confirm === true;
+
+    if (!confirm) {
+      res.json({
+        status: "preview",
+        total_rows: rows.length,
+        valid_rows: validRows.length,
+        unmatched_skus: unmatchedSkus,
+        errors,
+        preview: validRows.slice(0, 10).map((r) => {
+          const p = matchedBySku.get(r.sku)!;
+          return {
+            sku: r.sku,
+            productName: p.name,
+            price: r.price,
+            discount: r.discount,
+            minQuantity: r.minQuantity,
+          };
+        }),
+      });
+      return;
+    }
+
+    let inserted = 0;
+    let updated = 0;
+    const importErrors: string[] = [];
+
+    for (const r of validRows) {
+      const p = matchedBySku.get(r.sku)!;
+      try {
+        const [existing] = await db
+          .select({ id: priceListItems.id })
+          .from(priceListItems)
+          .where(and(eq(priceListItems.priceListId, priceListId), eq(priceListItems.productId, p.id)));
+        if (existing) {
+          await db
+            .update(priceListItems)
+            .set({
+              price: String(r.price),
+              ...(r.discount !== undefined && { discount: String(r.discount) }),
+              ...(r.minQuantity !== undefined && { minQuantity: r.minQuantity }),
+            })
+            .where(eq(priceListItems.id, existing.id));
+          updated++;
+        } else {
+          await db.insert(priceListItems).values({
+            priceListId,
+            productId: p.id,
+            price: String(r.price),
+            discount: r.discount !== undefined ? String(r.discount) : "0",
+            minQuantity: r.minQuantity ?? 1,
+          });
+          inserted++;
+        }
+      } catch (err) {
+        importErrors.push(`SKU ${r.sku}: ${(err as Error).message}`);
+      }
+    }
+
+    res.json({
+      status: "completed",
+      inserted,
+      updated,
+      unmatched_skus: unmatchedSkus.length ? unmatchedSkus : undefined,
+      errors: importErrors,
+    });
+  } catch (error) {
+    console.error("POST /price-lists/:id/import-prices error:", error);
+    res.status(500).json({ error: "Error al importar precios" });
   }
 });
