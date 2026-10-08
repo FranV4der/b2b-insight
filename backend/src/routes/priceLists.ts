@@ -66,9 +66,18 @@ priceListsRouter.get("/:id", async (req, res) => {
 
 priceListsRouter.post("/", async (req, res) => {
   try {
-    const { name, isMpPriceList, companyId: targetCompanyId } = req.body;
+    const { name, channel, companyId: targetCompanyId, isMpPriceList } = req.body;
     if (!name?.trim()) {
       res.status(400).json({ error: "El nombre es requerido" });
+      return;
+    }
+    // Compatibilidad: si un cliente viejo manda isMpPriceList, se mapea a canal.
+    let resolvedChannel = channel;
+    if (resolvedChannel === undefined && isMpPriceList !== undefined) {
+      resolvedChannel = isMpPriceList ? "chilecompra" : "retail";
+    }
+    if (resolvedChannel !== "retail" && resolvedChannel !== "chilecompra") {
+      res.status(400).json({ error: "Canal no válido (retail | chilecompra)" });
       return;
     }
     let companyId = req.auth!.companyId;
@@ -81,7 +90,7 @@ priceListsRouter.post("/", async (req, res) => {
     }
     const [list] = await db
       .insert(priceLists)
-      .values({ name: name.trim(), companyId, isMpPriceList: !!isMpPriceList })
+      .values({ name: name.trim(), companyId, channel: resolvedChannel })
       .returning();
     res.status(201).json(list);
   } catch (error) {
@@ -93,7 +102,7 @@ priceListsRouter.post("/", async (req, res) => {
 priceListsRouter.put("/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { name, isActive, isMpPriceList } = req.body;
+    const { name, isActive, channel, isMpPriceList } = req.body;
     const [existing] = await db
       .select()
       .from(priceLists)
@@ -102,12 +111,20 @@ priceListsRouter.put("/:id", async (req, res) => {
       res.status(404).json({ error: "Lista de precio no encontrada" });
       return;
     }
+    let resolvedChannel = channel;
+    if (resolvedChannel === undefined && isMpPriceList !== undefined) {
+      resolvedChannel = isMpPriceList ? "chilecompra" : "retail";
+    }
+    if (resolvedChannel !== undefined && resolvedChannel !== "retail" && resolvedChannel !== "chilecompra") {
+      res.status(400).json({ error: "Canal no válido (retail | chilecompra)" });
+      return;
+    }
     const [updated] = await db
       .update(priceLists)
       .set({
         ...(name !== undefined && { name: name.trim() }),
         ...(isActive !== undefined && { isActive }),
-        ...(isMpPriceList !== undefined && { isMpPriceList }),
+        ...(resolvedChannel !== undefined && { channel: resolvedChannel }),
       })
       .where(eq(priceLists.id, id))
       .returning();

@@ -27,7 +27,7 @@ export function PriceListManager() {
   const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [newName, setNewName] = useState('')
-  const [newIsMp, setNewIsMp] = useState(false)
+  const [newChannel, setNewChannel] = useState<'retail' | 'chilecompra'>('retail')
   const [products, setProducts] = useState<Product[]>([])
 
   async function loadLists() {
@@ -72,10 +72,10 @@ export function PriceListManager() {
     try {
       await fetchApi('/price-lists', {
         method: 'POST',
-        body: JSON.stringify({ name: newName.trim(), isMpPriceList: newIsMp }),
+        body: JSON.stringify({ name: newName.trim(), channel: newChannel }),
       })
       setNewName('')
-      setNewIsMp(false)
+      setNewChannel('retail')
       setShowForm(false)
       await loadLists()
     } catch (err) {
@@ -150,10 +150,11 @@ export function PriceListManager() {
               <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Ej: Lista Premium" />
             </div>
             <div className="form-field">
-              <label>
-                <input type="checkbox" checked={newIsMp} onChange={(e) => setNewIsMp(e.target.checked)} />
-                {' '}Lista de Mercado Público
-              </label>
+              <label>Canal *</label>
+              <select value={newChannel} onChange={(e) => setNewChannel(e.target.value as 'retail' | 'chilecompra')}>
+                <option value="retail">Compra normal</option>
+                <option value="chilecompra">ChileCompra</option>
+              </select>
             </div>
           </div>
           <div className="form-actions">
@@ -186,8 +187,8 @@ export function PriceListManager() {
                     </button>
                   </td>
                   <td>
-                    <span className={`role-badge ${l.isMpPriceList ? 'role-admin' : 'role-buyer'}`}>
-                      {l.isMpPriceList ? 'M. Público' : 'General'}
+                    <span className={`role-badge ${l.channel === 'chilecompra' ? 'role-admin' : 'role-buyer'}`}>
+                      {l.channel === 'chilecompra' ? 'ChileCompra' : 'Normal'}
                     </span>
                   </td>
                   <td>

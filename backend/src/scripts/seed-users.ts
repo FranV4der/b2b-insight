@@ -24,7 +24,7 @@ async function seed() {
   }
 
   const { rows: mpLists } = await pool.query(
-    "select id from price_lists where is_mp_price_list = true and company_id = $1",
+    "select id from price_lists where channel = 'chilecompra' and company_id = $1",
     [provider.id]
   );
   let mpListId: number;
@@ -32,7 +32,7 @@ async function seed() {
     mpListId = mpLists[0].id;
   } else {
     const { rows: created } = await pool.query(
-      "insert into price_lists (name, company_id, is_active, is_mp_price_list) values ($1, $2, true, true) returning id",
+      "insert into price_lists (name, company_id, is_active, channel) values ($1, $2, true, 'chilecompra') returning id",
       ["Lista ChileCompra", provider.id]
     );
     mpListId = created[0].id;
@@ -66,8 +66,8 @@ async function seed() {
       companyId = existingCompanies[0].id;
     } else {
       const { rows: created } = await pool.query(
-        "insert into companies (name, slug, type, status) values ($1, $2, $3, 'active') returning id",
-        [`Cliente Demo ${cfg.n}`, slug, cfg.type]
+        "insert into companies (name, slug, status) values ($1, $2, 'active') returning id",
+        [`Cliente Demo ${cfg.n}`, slug]
       );
       companyId = created[0].id;
     }
@@ -81,13 +81,16 @@ async function seed() {
       listId = lists[0].id;
     } else {
       const { rows: created } = await pool.query(
-        "insert into price_lists (name, company_id, is_active, is_mp_price_list) values ($1, $2, true, false) returning id",
+        "insert into price_lists (name, company_id, is_active, channel) values ($1, $2, true, 'retail') returning id",
         [listName, companyId]
       );
       listId = created[0].id;
     }
     await insertItemsIfEmpty(listId, providerProducts.map((p) => ({ id: p.id, price: p.regular_price })));
-    await pool.query("update companies set price_list_id = $1 where id = $2", [listId, companyId]);
+    await pool.query(
+      "insert into customer_price_lists (customer_id, price_list_id) select c.id, $1 from customers c where c.id = (select id from customers where email = $2) on conflict do nothing",
+      [listId, email]
+    );
 
     const hash = await bcrypt.hash("usuario1234", 12);
     await pool.query(

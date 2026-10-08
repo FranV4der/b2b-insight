@@ -31,11 +31,11 @@ export function ProductDetailView() {
     const id = selectedProduct?.id
     if (!id) return
     let cancelled = false
-    getProduct(id)
+    getProduct(id, userType === 'mercadopublico' ? 'chilecompra' : 'retail')
       .then((p) => { if (!cancelled) setDetail(p) })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [selectedProduct?.id])
+  }, [selectedProduct?.id, userType])
 
   if (!selectedProduct) return null
 

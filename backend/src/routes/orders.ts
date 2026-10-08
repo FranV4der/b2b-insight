@@ -176,10 +176,12 @@ ordersRouter.post("/", requireAuth, async (req, res) => {
     const productsById = new Map(productRows.map((p) => [p.id, p]));
 
     const priceListIds: number[] = [];
-    if (orderChannel === "retail") {
-      if (ctx.priceListId) priceListIds.push(ctx.priceListId);
-    } else {
-      priceListIds.push(...Array.from(ctx.mpPriceListsByProvider.values()));
+    if (orderChannel) {
+      if (ctx.priceListId) {
+        priceListIds.push(ctx.priceListId);
+      } else if (orderChannel === "chilecompra") {
+        priceListIds.push(...Array.from(ctx.mpPriceListsByProvider.values()));
+      }
     }
 
     let priceItems: typeof priceListItems.$inferSelect[] = [];

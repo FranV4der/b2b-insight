@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcrypt";
 import { db } from "../db/index.js";
-import { users, companies, customers } from "../db/schema.js";
+import { users, companies, customers, customerPriceLists, priceLists } from "../db/schema.js";
 import { eq, and, isNull } from "drizzle-orm";
 import { signToken } from "../middleware/auth.js";
 import { EMAIL_RE, normalizeRut } from "../utils/validation.js";
@@ -17,20 +17,39 @@ function normalizeCustomerType(value: unknown, fallback: CustomerType): Customer
     : fallback;
 }
 
-function customerResponse(customer: {
+interface CustomerPriceListInfo {
+  id: number;
+  name: string;
+  channel: "retail" | "chilecompra";
+}
+
+async function customerPriceListsInfo(customerId: number): Promise<CustomerPriceListInfo[]> {
+  const rows = await db
+    .select({ priceListId: customerPriceLists.priceListId, name: priceLists.name, channel: priceLists.channel })
+    .from(customerPriceLists)
+    .innerJoin(priceLists, eq(customerPriceLists.priceListId, priceLists.id))
+    .where(eq(customerPriceLists.customerId, customerId));
+  return rows.map((r) => ({
+    id: r.priceListId,
+    name: r.name,
+    channel: r.channel as "retail" | "chilecompra",
+  }));
+}
+
+async function customerResponse(customer: {
   id: number;
   kind: string;
   name: string;
   type: string;
-  priceListId: number | null;
   status?: string;
 }) {
+  const priceListsInfo = await customerPriceListsInfo(customer.id);
   return {
     id: customer.id,
     kind: customer.kind,
     name: customer.name,
     type: customer.type,
-    priceListId: customer.priceListId,
+    priceLists: priceListsInfo,
     status: customer.status ?? null,
   };
 }
@@ -115,8 +134,17 @@ async function sessionPayload(user: {
       customerId: user.customerId,
       isMercadoPublico: user.isMercadoPublico,
     },
-    company: company ? customerResponse({ ...company, kind: "empresa", type: "normal", priceListId: null }) : null,
-    customer: customer ? customerResponse(customer) : null,
+    company: company
+      ? {
+          id: company.id,
+          kind: "empresa",
+          name: company.name,
+          type: "normal",
+          priceLists: [],
+          status: company.status ?? null,
+        }
+      : null,
+    customer: customer ? await customerResponse(customer) : null,
   };
 }
 

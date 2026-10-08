@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { db } from "../db/index.js";
-import { customers, users, priceLists } from "../db/schema.js";
+import { customers, users, priceLists, customerPriceLists } from "../db/schema.js";
 import { eq, and, or, ilike, asc, sql, inArray } from "drizzle-orm";
-import { requireAuth, scopeCustomerId } from "../middleware/auth.js";
+import { requireAuth, scopeCustomerId, scopeCompanyId, type AuthPayload } from "../middleware/auth.js";
 import { normalizeRut, EMAIL_RE } from "../utils/validation.js";
 import {
   PAYMENT_TERMS,
@@ -17,6 +17,75 @@ import {
 export const customersRouter = Router();
 
 customersRouter.use(requireAuth);
+
+/**
+ * Valida que un arreglo de ids de listas de precio sea válido y que las listas
+ * pertenezcan al vendedor autenticado (tenancy). Devuelve un mapa canal → id de
+ * lista, garantizando a lo sumo una lista por canal (retail / chilecompra).
+ */
+async function resolvePriceListAssignments(bodyPriceLists: unknown, auth: AuthPayload): Promise<Map<string, number>> {
+  const assignments = new Map<string, number>();
+  if (bodyPriceLists === undefined || bodyPriceLists === null) return assignments;
+  if (!Array.isArray(bodyPriceLists)) {
+    throw Object.assign(new Error("Listas de precio inválidas"), { status: 400 });
+  }
+  const ids = bodyPriceLists.map((p) => Number(p));
+  if (ids.some((id) => !Number.isInteger(id))) {
+    throw Object.assign(new Error("Listas de precio inválidas"), { status: 400 });
+  }
+  if (ids.length) {
+    const scope = scopeCompanyId(auth);
+    const rows = await db
+      .select()
+      .from(priceLists)
+      .where(scope === null ? inArray(priceLists.id, ids) : and(inArray(priceLists.id, ids), eq(priceLists.companyId, scope)));
+    const found = new Map(rows.map((r) => [r.id, r]));
+    for (const id of ids) {
+      const list = found.get(id);
+      if (!list) {
+        throw Object.assign(new Error("Una o más listas de precio no existen o no pertenecen a tu empresa"), { status: 400 });
+      }
+      if (assignments.has(list.channel)) {
+        throw Object.assign(new Error(`Solo puede haber una lista de precio por canal (${list.channel})`), { status: 400 });
+      }
+      assignments.set(list.channel, list.id);
+    }
+  }
+  return assignments;
+}
+
+/** Asignaciones de listas de precio (id + nombre + canal) de un comprador. */
+async function getAssignmentsForCustomers(customerIds: number[]): Promise<Map<number, Array<{ id: number; name: string; channel: string }>>> {
+  if (!customerIds.length) return new Map();
+  const rows = await db
+    .select({
+      customerId: customerPriceLists.customerId,
+      priceListId: customerPriceLists.priceListId,
+      name: priceLists.name,
+      channel: priceLists.channel,
+    })
+    .from(customerPriceLists)
+    .innerJoin(priceLists, eq(customerPriceLists.priceListId, priceLists.id))
+    .where(inArray(customerPriceLists.customerId, customerIds));
+  const map = new Map<number, Array<{ id: number; name: string; channel: string }>>();
+  for (const row of rows) {
+    const list = { id: row.priceListId, name: row.name, channel: row.channel };
+    map.set(row.customerId, [...(map.get(row.customerId) ?? []), list]);
+  }
+  return map;
+}
+
+async function setAssignments(customerId: number, assignments: Map<string, number>): Promise<void> {
+  await db.delete(customerPriceLists).where(eq(customerPriceLists.customerId, customerId));
+  if (assignments.size) {
+    await db.insert(customerPriceLists).values(
+      Array.from(assignments.entries()).map(([, priceListId]) => ({
+        customerId,
+        priceListId,
+      }))
+    );
+  }
+}
 
 /**
  * Compradores. El admin de plataforma ve todos; el admin de cada vendedor ve solo
@@ -61,7 +130,9 @@ customersRouter.get("/", async (req, res) => {
       );
     }
 
-    res.json(rows.map((r) => ({ ...r, userCount: userCounts.get(r.id) || 0 })));
+    const assignments = await getAssignmentsForCustomers(customerIds);
+
+    res.json(rows.map((r) => ({ ...r, userCount: userCounts.get(r.id) || 0, priceLists: assignments.get(r.id) ?? [] })));
   } catch (error) {
     console.error("GET /customers error:", error);
     res.status(500).json({ error: "Error al obtener compradores" });
@@ -110,7 +181,7 @@ customersRouter.post("/", async (req, res) => {
       commune,
       region,
       type,
-      priceListId,
+      priceListIds,
       creditLimit,
       status,
       billingAddress,
@@ -161,19 +232,13 @@ customersRouter.post("/", async (req, res) => {
       return;
     }
 
-    let resolvedPriceList: number | null = null;
-    if (priceListId !== undefined && priceListId !== null) {
-      const listId = Number(priceListId);
-      if (Number.isNaN(listId)) {
-        res.status(400).json({ error: "priceListId inválido" });
-        return;
-      }
-      const [list] = await db.select({ id: priceLists.id }).from(priceLists).where(eq(priceLists.id, listId));
-      if (!list) {
-        res.status(400).json({ error: "La lista de precio no existe" });
-        return;
-      }
-      resolvedPriceList = list.id;
+    let assignments = new Map<string, number>();
+    try {
+      assignments = await resolvePriceListAssignments(priceListIds, auth);
+    } catch (error) {
+      const e = error as { message: string; status?: number };
+      res.status(e.status ?? 400).json({ error: e.message });
+      return;
     }
 
     let credit: string = "0";
@@ -199,7 +264,6 @@ customersRouter.post("/", async (req, res) => {
         commune: commune?.trim() || null,
         region: region?.trim() || null,
         type: type ?? "normal",
-        priceListId: resolvedPriceList,
         creditLimit: credit,
         status: status ?? "pending",
         billingAddress: trimmedOrNull(billingAddress),
@@ -209,7 +273,12 @@ customersRouter.post("/", async (req, res) => {
       })
       .returning();
 
-    res.status(201).json(created);
+    if (assignments.size) {
+      await setAssignments(created.id, assignments);
+    }
+    const createdAssignments = await getAssignmentsForCustomers([created.id]);
+
+    res.status(201).json({ ...created, userCount: 0, priceLists: createdAssignments.get(created.id) ?? [] });
   } catch (error) {
     console.error("POST /customers error:", error);
     res.status(500).json({ error: "Error al crear comprador" });
@@ -255,7 +324,7 @@ customersRouter.put("/:id", async (req, res) => {
       commune,
       region,
       type,
-      priceListId,
+      priceListIds,
       creditLimit,
       status,
       billingAddress,
@@ -313,22 +382,14 @@ customersRouter.put("/:id", async (req, res) => {
       return;
     }
 
-    let resolvedPriceList: number | null | undefined;
-    if (priceListId !== undefined) {
-      if (priceListId === null) {
-        resolvedPriceList = null;
-      } else {
-        const listId = Number(priceListId);
-        if (Number.isNaN(listId)) {
-          res.status(400).json({ error: "priceListId inválido" });
-          return;
-        }
-        const [list] = await db.select({ id: priceLists.id }).from(priceLists).where(eq(priceLists.id, listId));
-        if (!list) {
-          res.status(400).json({ error: "La lista de precio no existe" });
-          return;
-        }
-        resolvedPriceList = list.id;
+    let assignments: Map<string, number> | undefined;
+    if (priceListIds !== undefined) {
+      try {
+        assignments = await resolvePriceListAssignments(priceListIds, auth);
+      } catch (error) {
+        const e = error as { message: string; status?: number };
+        res.status(e.status ?? 400).json({ error: e.message });
+        return;
       }
     }
 
@@ -361,7 +422,6 @@ customersRouter.put("/:id", async (req, res) => {
         ...(commune !== undefined && { commune: trimmed(commune) }),
         ...(region !== undefined && { region: trimmed(region) }),
         ...(type !== undefined && { type }),
-        ...(resolvedPriceList !== undefined && { priceListId: resolvedPriceList }),
         ...(resolvedCredit !== undefined && { creditLimit: resolvedCredit }),
         ...(status !== undefined && { status }),
         ...(billingAddress !== undefined && { billingAddress: trimmedOrNull(billingAddress) }),
@@ -373,7 +433,12 @@ customersRouter.put("/:id", async (req, res) => {
       .where(eq(customers.id, id))
       .returning();
 
-    res.json(updated);
+    if (assignments) {
+      await setAssignments(id, assignments);
+    }
+    const updatedAssignments = await getAssignmentsForCustomers([id]);
+
+    res.json({ ...updated, priceLists: updatedAssignments.get(id) ?? [] });
   } catch (error) {
     console.error("PUT /customers/:id error:", error);
     res.status(500).json({ error: "Error al actualizar comprador" });

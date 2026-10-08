@@ -522,3 +522,35 @@ canal de compra y el precio dependen del **tipo de cliente registrado**:
 #### Pendiente
 - ~~Importar repo en Vercel + setear CORS_ORIGIN~~ → hecho (ver "Puesta en producción Vercel (2026-10-07)" más abajo).
 - Carga de productos reales de IMEX ESTADO + datos legales y logo; teléfono real para WhatsApp; rotar passwords temporales; verificación visual del PDF en producción; ERP Microsoft Dynamics.
+
+---
+
+## Fase 5 (2026-10-08): Listas de precio multi-canal + validación de licitación
+
+Rediseño del modelo de precios: un comprador puede tener varias listas de precio, una por canal (`retail` / `chilecompra`).
+
+#### Schema (backend/src/db/schema.ts)
+- `price_lists.channel` (`varchar(20)` default `'retail'`) + constante `PRICE_LIST_CHANNELS`; se eliminó `price_lists.is_mp_price_list`.
+- Nueva tabla `customer_price_lists` (N:N comprador→lista) con índices por `customer_id` y `price_list_id`; se eliminó `customers.price_list_id`.
+- `price_list_items` con `uniqueIndex (price_list_id, product_id)`.
+
+#### Backend
+- `src/services/pricing.ts`: `getCustomerPriceLists(customerId)` (mapa canal→lista asignada) y `resolvePriceContext` — prioridad: lista asignada del cliente al canal activo; si falta y el canal es `chilecompra`, cae al MP del vendedor; si no, precios regulares. Sigue forzando canal `chilecompra` para compradores de tipo `chilecompra`.
+- `src/routes/customers.ts`: POST/PUT aceptan `priceListIds: number[]`; GET devuelve `priceLists: [{id, name, channel}]` por cliente; validación de tenancy y **una lista por canal** (400 en duplicado).
+- `src/routes/auth.ts`: `customerResponse` ahora async e incluye `priceLists`; `sessionPayload` actualizado.
+- `src/routes/priceLists.ts`: POST/PUT aceptan `channel` (con compatibilidad de `isMpPriceList` → canal).
+- `src/routes/products.ts` y `orders.ts`: prioridad de precio = lista asignada `ctx.priceListId`.
+- Nuevo script `src/scripts/migrate-price-lists.ts` (`npm run db:migrate-price-lists`): backfill `channel` desde `is_mp_price_list`, crea `customer_price_lists`, migra `customers.price_list_id`, dedupe de `price_list_items` y crea el índice único. **Correr antes de `db:push`** (que dropea las columnas viejas).
+- Fix `src/routes/customers.ts`: helper `resolvePriceListAssignments` tipado con `AuthPayload`.
+- Fix `src/scripts/seed-users.ts`: insert de compañía sin columna `type` inexistente; usa `channel` en vez de `is_mp_price_list`.
+
+#### Frontend
+- `src/types/auth.ts`: `PriceList.isMpPriceList → channel`; `AuthCustomer.priceListId → priceLists[]`.
+- `src/services/api.ts`: `CustomerAdminItem.priceLists`; `create/updateCustomer` reciben `priceListIds`; `getProduct(id, channel?)`.
+- `src/components/PriceListManager.tsx`: selector de canal (Compra normal / ChileCompra) en creación.
+- `src/components/CustomersManager.tsx`: dos selects de lista por canal, formulario "+ Nuevo comprador" (crea vía POST /customers).
+- `src/components/Header.tsx`: **gate de validación** — al activar ChileCompra se pide el código de licitación y se valida contra Mercado Público antes de cambiar de modo; si no existe (404) o la API cae (5xx) se muestra mensaje y se queda en compra normal. Modal y estilos en `src/App.css`.
+- `src/views/ProductDetailView.tsx`: `getProduct(id, channel según userType)`.
+
+#### Despliegue
+- Orden requerido en Railway: `npm run db:migrate-price-lists` → `db:push` → push a `main` (el build no migra).

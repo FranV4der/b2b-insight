@@ -115,10 +115,12 @@ productsRouter.get("/", async (req, res) => {
 
     const priceMap = new Map<number, { price: string; discount: string }>();
     const priceListIds: number[] = [];
-    if (ctx.channel === "retail") {
-      if (ctx.priceListId) priceListIds.push(ctx.priceListId);
-    } else if (ctx.channel === "chilecompra") {
-      priceListIds.push(...Array.from(ctx.mpPriceListsByProvider.values()));
+    if (ctx.channel) {
+      if (ctx.priceListId) {
+        priceListIds.push(ctx.priceListId);
+      } else if (ctx.channel === "chilecompra") {
+        priceListIds.push(...Array.from(ctx.mpPriceListsByProvider.values()));
+      }
     }
     if (priceListIds.length && productIds.length) {
       const prices = await db
@@ -196,11 +198,13 @@ productsRouter.get("/my-price", async (req, res) => {
     const ctx = await resolvePriceContext(auth?.customerId ?? undefined, req.query.channel as string | undefined);
 
     let priceListId: number | null = null;
-    if (ctx.channel === "retail") {
-      priceListId = ctx.priceListId;
-    } else if (ctx.channel === "chilecompra") {
-      const ids = Array.from(ctx.mpPriceListsByProvider.values());
-      priceListId = ids[0] ?? null;
+    if (ctx.channel) {
+      if (ctx.priceListId) {
+        priceListId = ctx.priceListId;
+      } else if (ctx.channel === "chilecompra") {
+        const ids = Array.from(ctx.mpPriceListsByProvider.values());
+        priceListId = ids[0] ?? null;
+      }
     }
 
     if (!priceListId) {
@@ -320,10 +324,12 @@ productsRouter.get("/:id", async (req, res) => {
     const ctx = await resolvePriceContext(auth?.customerId ?? undefined, req.query.channel as string | undefined);
 
     let priceListId: number | null = null;
-    if (ctx.channel === "retail") {
-      priceListId = ctx.priceListId;
-    } else if (ctx.channel === "chilecompra") {
-      priceListId = product.companyId != null ? (ctx.mpPriceListsByProvider.get(product.companyId) ?? null) : null;
+    if (ctx.channel) {
+      if (ctx.priceListId) {
+        priceListId = ctx.priceListId;
+      } else if (ctx.channel === "chilecompra") {
+        priceListId = product.companyId != null ? (ctx.mpPriceListsByProvider.get(product.companyId) ?? null) : null;
+      }
     }
 
     let priceListPrice: string | null = null;

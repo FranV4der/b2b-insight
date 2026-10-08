@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Category } from '../types/product.ts'
 import { getCategories, searchProducts, type ProductSuggestion } from '../services/api.ts'
+import { getLicitacionByCode } from '../services/mercadopublico.ts'
 import { useApp } from '../context/AppContext.tsx'
 import { useAuth } from '../context/AuthContext.tsx'
 import { NotificationBell } from './NotificationBell.tsx'
@@ -19,18 +20,53 @@ const ROLE_LABELS: Record<string, string> = {
 }
 
 export function Header({ onOpenRegister }: Props) {
-  const { userType, items, navigate, setUserType, view, storeSearch, setStoreSearch, storeCategory, setStoreCategory } = useApp()
+  const { userType, items, navigate, setUserType, view, storeSearch, setStoreSearch, storeCategory, setStoreCategory, setLicitacionCode } = useApp()
   const { user, customer, logout, isEmpresa, isAdmin } = useAuth()
   const [loginOpen, setLoginOpen] = useState(false)
   const [categoryOpen, setCategoryOpen] = useState(false)
   const [categories, setCategories] = useState<Category[]>([])
   const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([])
   const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+  const [gateOpen, setGateOpen] = useState(false)
+  const [gateCode, setGateCode] = useState('')
+  const [gateLoading, setGateLoading] = useState(false)
+  const [gateError, setGateError] = useState<string | null>(null)
   const itemCount = items.reduce((sum, i) => sum + i.quantity, 0)
   const canManage = isEmpresa || isAdmin
   const isBuyer = !!user && !canManage
   const canToggleProfile = isBuyer && customer?.type === 'both'
   const showSearch = !canManage && (view === 'home' || view === 'product-detail')
+
+  const switchToMercadoPublico = () => {
+    setGateCode('')
+    setGateError(null)
+    setGateOpen(true)
+  }
+
+  const confirmMercadoPublico = async () => {
+    const code = gateCode.trim()
+    if (!code) {
+      setGateError('Ingresa el código de la licitación para ver precios ChileCompra.')
+      return
+    }
+    setGateLoading(true)
+    setGateError(null)
+    try {
+      const res = await getLicitacionByCode(code)
+      if (!res) {
+        setGateError('La licitación no existe en Mercado Público. Verifica el código o continúa con la compra normal.')
+        return
+      }
+      setLicitacionCode(code)
+      setUserType('mercadopublico')
+      setGateOpen(false)
+      setGateCode('')
+    } catch {
+      setGateError('El servicio de Mercado Público no está disponible. Intenta más tarde o continúa con la compra normal.')
+    } finally {
+      setGateLoading(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -188,7 +224,7 @@ export function Header({ onOpenRegister }: Props) {
               </button>
               <button
                 className={userType === 'mercadopublico' ? 'active' : undefined}
-                onClick={() => setUserType('mercadopublico')}
+                onClick={switchToMercadoPublico}
               >
                 ChileCompra
               </button>
@@ -234,6 +270,35 @@ export function Header({ onOpenRegister }: Props) {
           </div>
         )}
       </div>
+
+      {gateOpen && isBuyer && (
+        <div className="modal-overlay" onClick={() => !gateLoading && setGateOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Comprar por ChileCompra</h3>
+            <p className="muted">
+              Ingresa el código de la licitación para validarla con Mercado Público y ver los precios de ChileCompra.
+            </p>
+            <input
+              type="text"
+              value={gateCode}
+              onChange={(e) => setGateCode(e.target.value)}
+              placeholder="Ej: 1509-5-L114"
+              disabled={gateLoading}
+              onKeyDown={(e) => { if (e.key === 'Enter') confirmMercadoPublico() }}
+              autoFocus
+            />
+            {gateError && <p className="form-error">{gateError}</p>}
+            <div className="modal-actions">
+              <button className="table-btn" onClick={() => setGateOpen(false)} disabled={gateLoading}>
+                Cancelar
+              </button>
+              <button className="send-quote-btn" onClick={confirmMercadoPublico} disabled={gateLoading}>
+                {gateLoading ? 'Validando...' : 'Validar y continuar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   )
 }

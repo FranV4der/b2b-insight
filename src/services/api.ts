@@ -1,5 +1,5 @@
 import type { Product, ProductListResponse, Category, Brand, ProductDocument } from '../types/product.ts'
-import type { LoginResponse, AuthUser, AuthCustomer, UserListItem, CompanyType, BuyChannel, PriceList } from '../types/auth.ts'
+import type { LoginResponse, AuthUser, AuthCustomer, UserListItem, CompanyType, BuyChannel, PriceList, CustomerPriceList } from '../types/auth.ts'
 import type { Order, OrderListResponse, CreateOrderData, CreateOrderResponse, OrderStatus } from '../types/order.ts'
 import type { AppNotification, NotificationsResponse } from '../types/notification.ts'
 
@@ -89,8 +89,9 @@ export async function searchProducts(search: string): Promise<ProductSuggestion[
   return fetchApi<ProductSuggestion[]>(`/products/search?${qs.toString()}`)
 }
 
-export async function getProduct(id: number): Promise<Product> {
-  return fetchApi<Product>(`/products/${id}`)
+export async function getProduct(id: number, channel?: BuyChannel): Promise<Product> {
+  const qs = channel ? `?channel=${channel}` : ''
+  return fetchApi<Product>(`/products/${id}${qs}`)
 }
 
 export async function getCategories(): Promise<Category[]> {
@@ -570,7 +571,7 @@ export interface CustomerAdminItem {
   billingRegion: string | null
   type: CompanyType
   paymentTerms: 'contado' | '30' | '60' | '90' | null
-  priceListId: number | null
+  priceLists: CustomerPriceList[]
   creditLimit: string
   creditUsed: string
   status: string
@@ -610,7 +611,7 @@ export async function getCompanies(params?: { search?: string }): Promise<Compan
 }
 
 export async function createCustomer(
-  data: Partial<CustomerAdminItem>,
+  data: Partial<Omit<CustomerAdminItem, 'id' | 'createdAt' | 'userCount'>> & { priceListIds?: number[] },
 ): Promise<CustomerAdminItem> {
   return fetchApi<CustomerAdminItem>('/customers', {
     method: 'POST',
@@ -627,7 +628,7 @@ export async function getCustomers(params?: { search?: string }): Promise<Custom
 
 export async function updateCustomer(
   id: number,
-  data: Partial<Omit<CustomerAdminItem, 'id' | 'createdAt' | 'userCount'>>,
+  data: Partial<Omit<CustomerAdminItem, 'id' | 'createdAt' | 'userCount'>> & { priceListIds?: number[] },
 ): Promise<CustomerAdminItem> {
   return fetchApi<CustomerAdminItem>(`/customers/${id}`, {
     method: 'PUT',

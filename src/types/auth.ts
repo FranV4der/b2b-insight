@@ -17,13 +17,19 @@ export type BuyChannel = 'retail' | 'chilecompra'
 export type CompanyStatus = 'pending' | 'active' | 'suspended'
 export type CustomerKind = 'persona' | 'empresa'
 
+export interface CustomerPriceList {
+  id: number
+  name: string
+  channel: BuyChannel
+}
+
 /** Comprador: persona natural u organización. */
 export interface AuthCustomer {
   id: number
   kind: CustomerKind
   name: string
   type: CompanyType
-  priceListId: number | null
+  priceLists: CustomerPriceList[]
   status: CompanyStatus | null
 }
 
@@ -53,7 +59,7 @@ export interface PriceList {
   name: string
   companyId: number
   isActive: boolean
-  isMpPriceList: boolean
+  channel: BuyChannel
   validFrom: string | null
   validUntil: string | null
   createdAt: string

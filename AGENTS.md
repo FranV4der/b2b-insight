@@ -56,7 +56,8 @@ npm run preview   # vite preview
 cd backend
 npm install
 cp .env.example .env     # Configurar DATABASE_URL y JWT_SECRET
-npm run db:push           # Crear/actualizar tablas
+npm run db:push           # Crear/actualizar tablas (sincroniza schema)
+npm run db:migrate-price-lists  # Migración multi-canal de listas de precio (correr ANTES de db:push la primera vez)
 npm run create:admin -- admin@tuempresa.cl <password> "Tu Nombre"
                           # Crea el admin de plataforma (company_id = NULL)
 npm run create:company -- --name "IMEX ESTADO" --rut "84888400-6" \
@@ -124,9 +125,9 @@ Frontend (Vercel)              Backend (Railway)              PostgreSQL (Railwa
 | GET | `/api/companies` | Listar **vendedores** (`admin` ve todos; `empresa` solo el suyo) |
 | POST | `/api/companies` | Crear vendedor (solo `admin`; valida RUT y unicidad de slug) |
 | PUT | `/api/companies/:id` | Editar vendedor (acota por `scopeCompanyId`) |
-| GET | `/api/customers` | Listar **compradores** (con búsqueda) |
-| POST | `/api/customers` | Crear comprador (solo `admin`) |
-| PUT | `/api/customers/:id` | Editar comprador (tipo, estado, lista de precio, crédito) |
+| GET | `/api/customers` | Listar **compradores** (con búsqueda; incluye `priceLists: [{id, name, channel}]` por cliente) |
+| POST | `/api/customers` | Crear comprador (solo `admin`; acepta `priceListIds: number[]`) |
+| PUT | `/api/customers/:id` | Editar comprador (tipo, estado, lista de precio, crédito; `priceListIds` reemplaza asignaciones, una lista por canal) |
 | GET | `/api/notifications` | Notificaciones del usuario + contador no leídas |
 | PUT | `/api/notifications/:id/read` | Marcar notificación como leída |
 | PUT | `/api/notifications/read-all` | Marcar todas como leídas |
@@ -209,7 +210,7 @@ git push -u origin main
 ### Notas de producción
 - Los adjuntos viven en disco (`backend/uploads/`): el volumen de Railway persiste entre deploys; mover a S3/R2 si se escala.
 - El ticket de Mercado Público nunca se expone al frontend (proxy server-side).
-- `db:push` solo corre manualmente; el build de Railway **no** migra.
+- `db:push` solo corre manualmente; el build de Railway **no** migra. Para el modelo multi-canal de listas de precio, correr `npm run db:migrate-price-lists` (backfill idempotente) **antes** de `db:push` la primera vez (éste dropea las columnas viejas `is_mp_price_list` y `customers.price_list_id`).
 
 ## Modelo de Negocio: Vendedor vs Comprador
 
@@ -218,7 +219,7 @@ git push -u origin main
 | | Vendedor (`companies`) | Comprador (`customers`) |
 |---|---|---|
 | Identidad | Razón social, giro, logo, contacto | `kind`: `persona` \| `empresa` |
-| Comercial | `status` del vendedor | `type`, `priceListId`, `creditLimit`, `creditUsed`, `status` |
+| Comercial | `status` del vendedor | `type`, listas por canal via `customer_price_lists`, `creditLimit`, `creditUsed`, `status` |
 | Pertenencia | cada cliente tiene `company_id` → su vendedor | |
 | Precio | precios en `products` / `price_lists` | qué lista y canal aplica (`resolvePriceContext`) |
 
@@ -258,9 +259,13 @@ Ambos punteros son **nullable** (`ON DELETE SET NULL`): borrar un vendedor o com
 - `product_documents` — Documentos adjuntos (PDF): `product_id`, `title`, `file_path`, `file_url`, `doc_type` (`hoja_seguridad`/`manual`/`ficha_tecnica`/`otro`)
 - `users` — `company_id` nullable (→ `companies`, vendedor) y `customer_id` nullable (→ `customers`, comprador)
 - `companies` — **vendedor**: `legal_name`, `business_activity`, `commune`, `region`, `contact_name`, `contact_role`, `contact_email`, `contact_phone`, `status` (además de name, slug, rut, address, phone, email, website, logo_url)
-- `customers` — **comprador**: `company_id` nullable (→ `companies`, vendedor que lo atiende), `kind`, `name`, `rut`, `email`, `phone`, `address`, `commune`, `region`, `type`, `priceListId`, `creditLimit`, `creditUsed`, `status`, `payment_terms` (`contado`/`30`/`60`/`90`), `billing_address`, `billing_commune`, `billing_region`
+- `customers` — **comprador**: `company_id` nullable (→ `companies`, vendedor que lo atiende), `kind`, `name`, `rut`, `email`, `phone`, `address`, `commune`, `region`, `type`, `creditLimit`, `creditUsed`, `status`, `payment_terms` (`contado`/`30`/`60`/`90`), `billing_address`, `billing_commune`, `billing_region`
+- `price_lists` — listas de precio del vendedor, cada una con `channel` (`retail`/`chilecompra`); una lista por canal por comprador (`customer_price_lists`, tabla N:N con FK cascade)
+- `price_list_items` — precios por producto por lista; índice único `(price_list_id, product_id)`
 - `orders` — `customer_id` (comprador), `company_id` (vendedor) y snapshot inmutable `buyerName`/`buyerEmail`/`buyerRut`
 - `quotations` — `customer_id` (comprador)
+
+**Resolución de precios** (`backend/src/services/pricing.ts`): para el canal activo (`retail` de compra normal, `chilecompra` si hay código de licitación) se usa la lista asignada del comprador (`customer_price_lists`); si no hay lista asignada y el canal es `chilecompra`, cae al MP del vendedor (`price_chilecompra`); si no, precios regulares. Al activar ChileCompra, el frontend valida primero el código de licitación contra la API de Mercado Público (`src/components/Header.tsx`).
 
 `backend/src/utils/validation.ts` centraliza `slugify`, `EMAIL_RE` y `normalizeRut` (valida el dígito verificador chileno y canonicaliza a `12345678-5`).
 
@@ -271,3 +276,4 @@ Ambos punteros son **nullable** (`ON DELETE SET NULL`): borrar un vendedor o com
 - Cambiar el password temporal de `admin@imex.cl` (fue reseteado a `imex-admin-temp-2026` para las pruebas)
 - Conectar con ERP Microsoft Dynamics para inserción de datos
 - Verificación visual del PDF generado en producción
+- Aplicar en producción la migración multi-canal (`npm run db:migrate-price-lists` + `db:push`) y verificar asignaciones por cliente

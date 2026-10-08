@@ -10,6 +10,7 @@ import {
   primaryKey,
   jsonb,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 // ─── PRODUCTS ──────────────────────────────────────────────
@@ -217,7 +218,6 @@ export const customers = pgTable(
     type: varchar("type", { length: 20 }).notNull().default("normal"),
     // Condición de pago pactada: "contado" | "30" | "60" | "90" días.
     paymentTerms: varchar("payment_terms", { length: 20 }),
-    priceListId: integer("price_list_id"),
     creditLimit: decimal("credit_limit", { precision: 12, scale: 2 })
       .notNull()
       .default("0"),
@@ -450,6 +450,9 @@ export const approvalRuleLevels = pgTable(
 
 // ─── PRICE LISTS ───────────────────────────────────────────
 
+export const PRICE_LIST_CHANNELS = ["retail", "chilecompra"] as const;
+export type PriceListChannel = (typeof PRICE_LIST_CHANNELS)[number];
+
 export const priceLists = pgTable(
   "price_lists",
   {
@@ -459,13 +462,16 @@ export const priceLists = pgTable(
       onDelete: "cascade",
     }),
     isActive: boolean("is_active").notNull().default(true),
-    isMpPriceList: boolean("is_mp_price_list").notNull().default(false),
+    // Canal al que aplica la lista: precios de catálogo (retail) o de
+    // compra por ChileCompra / Mercado Público (chilecompra).
+    channel: varchar("channel", { length: 20 }).notNull().default("retail"),
     validFrom: timestamp("valid_from"),
     validUntil: timestamp("valid_until"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => ({
     companyIdx: index("idx_price_lists_company").on(t.companyId),
+    channelIdx: index("idx_price_lists_channel").on(t.channel),
   })
 );
 
@@ -487,6 +493,35 @@ export const priceListItems = pgTable(
   (t) => ({
     priceListIdx: index("idx_price_list_items_list").on(t.priceListId),
     productIdx: index("idx_price_list_items_product").on(t.productId),
+    uniqueListProduct: uniqueIndex("uq_price_list_items_list_product").on(
+      t.priceListId,
+      t.productId
+    ),
+  })
+);
+
+// ─── CUSTOMER PRICE LISTS (asignación comprador → lista) ────
+//
+// Un comprador (customers) puede tener varias listas de precio: a lo sumo una
+// por canal (retail / chilecompra). La antigua columna `customers.price_list_id`
+// se reemplaza por esta tabla N:N; `channel` vive en `price_lists`, por lo que
+// la unicidad "una por canal" se valida en la capa de aplicación.
+
+export const customerPriceLists = pgTable(
+  "customer_price_lists",
+  {
+    id: serial("id").primaryKey(),
+    customerId: integer("customer_id")
+      .references(() => customers.id, { onDelete: "cascade" })
+      .notNull(),
+    priceListId: integer("price_list_id")
+      .references(() => priceLists.id, { onDelete: "cascade" })
+      .notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    customerIdx: index("idx_customer_price_lists_customer").on(t.customerId),
+    listIdx: index("idx_customer_price_lists_list").on(t.priceListId),
   })
 );
 
