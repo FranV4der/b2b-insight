@@ -642,3 +642,23 @@ Rediseño integral: bugs concretos, página principal y panel de gestión con si
 
 #### Verificación
 - `npm run build` (tsc -b + vite) y `npm run lint` en verde. Revisión visual pendiente (el backend local debe correr con `DATABASE_URL` de Railway para poder iniciar sesión).
+
+---
+
+## Fase 9 (2026-10-08): Fixes de producción + puesta en marcha de este equipo
+
+Trabajo de la sesión del 8/10 sobre el deploy en Railway/Vercel y la sincronización local.
+
+#### Fixes (frontend/backend, desplegados)
+- **Subir PDFs al crear producto**: `src/components/ProductForm.tsx` — en modo "Nuevo Producto" ahora se pueden elegir hoja de seguridad/manual/ficha técnica/otro y la ficha técnica PDF antes de guardar; se suben automáticamente tras crear el producto (mismo patrón que las fotos con `pendingImages`). Antes las secciones solo aparecían al editar (guard `product &&`), lo que parecía una diferencia entre local y producción.
+- **Descarga de plantilla Excel** (`src/components/ExcelUploader.tsx`, `src/services/api.ts`): se reemplazó el `<a href download>` (no envía `Authorization`) por `downloadTemplate()` con `fetch` + token y descarga vía blob. El endpoint `/api/products/template` exige `requireAuth`; el enlace plano bajaba el JSON del error.
+- **Orden de routers** (`backend/src/index.ts`): `importRouter` (con `GET /template` y `POST /import`) ahora se monta **antes** que `productsRouter`. Antes `/api/products/template` lo capturaba `GET /:id` → `500 "Error fetching product"`. Verificado en producción: devuelve `.xlsx` (firma `PK`, 16KB) directo y vía Vercel.
+
+#### Ops / puesta en marcha de este equipo
+- `git pull` del commit de rediseño (`2312f75`, Fase 8) que el otro equipo pusheó después de nuestra última sync (local quedó atrás; el 8º commit venía más tarde).
+- **BD local** sincronizada con el esquema nuevo: `npm run db:migrate-price-lists` (backfill idempotente) + `npm run db:push -- --force` (dropea la columna legacy `customers.price_list_id`; el prompt interactivo requiere `--force` en sesiones no-TTY).
+- **Restore full de la BD de Railway → local**: dump con `pg_dump` **18** (`/usr/lib/postgresql/18/bin`), restore `--no-owner` en PG14 local. El `pg_dump` 14 no admite servidor 18 (aborta por versión). `DROP SCHEMA` falló (usuario `insight` no es dueño de `public`); se limpió con `DROP OWNED BY insight CASCADE`. Conteos verificados iguales a producción (users 6, products 7, customers 5, brands 4, categories 2, images 18, price_lists 1, customer_price_lists 1). Nota: al restaurar, **users/passwords locales pasan a ser los de producción**.
+- **Password de producción `admin@imex.cl`** cambiado a `Imex@12025` (antes `Imextemp!2026`). Verificado login 200 / viejo 401.
+- **Incidente local**: el backend corriendo era un `dist` viejo (7 oct) → `/api/customers` y `/api/price-lists` 500 porque el código viejo usa `customers.price_list_id` (columna ya dropeada). El login daba 200 pero el post-login fallaba ("Error interno del servidor"). Rebuild + restart del proceso. En Railway no pasa: deploy automático con código nuevo.
+- **Limpieza pendiente en el volume de Railway** (bloqueado para agentes): directorios espurios del `railway volume files upload` (`/uploads`, `/images/images`, `/logos/logos`, `/docs/docs`, `/pdfs/pdfs`). Borrarlos a mano con `railway volume files delete --volume b2b-insight-volume <ruta> --yes`. No afectan funcionamiento.
+- **Upload de imágenes al volume**: las imágenes demo ya quedaron servidas en `/app/uploads/images/...` (upload del contenido de `backend/uploads`); catalog con 7 productos e imágenes 200 en producción.

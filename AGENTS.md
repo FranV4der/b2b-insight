@@ -277,7 +277,8 @@ Ambos punteros son **nullable** (`ON DELETE SET NULL`): borrar un vendedor o com
 
 - Cargar datos reales de IMEX ESTADO (RUT, razón social, giro, contactos, logo) y sus productos/listas de precio/clientes
 - Reemplazar el teléfono de contacto de IMEX (`+56 9 8765 4321` es placeholder de demo para el botón WhatsApp)
-- Cambiar el password temporal de `admin@imex.cl` (fue reseteado a `imex-admin-temp-2026` para las pruebas)
+- Cambiar el password temporal de `admin@imex.cl` en **local** (tras el restore desde Railway, local usa `Imex@12025`, igual que producción; documentado en CHANGELOG Fase 9)
 - Conectar con ERP Microsoft Dynamics para inserción de datos
 - Verificación visual del PDF generado en producción
 - Probar la carga masiva de precios Excel (`POST /api/price-lists/:id/import-prices`) con datos reales de IMEX
+- Limpieza del volume de Railway: borrar a mano `/uploads`, `/images/images`, `/logos/logos`, `/docs/docs`, `/pdfs/pdfs` (Railway bloquea el borrado por agentes)
