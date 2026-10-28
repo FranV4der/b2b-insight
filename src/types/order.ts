@@ -19,6 +19,7 @@ export interface Order {
   companyId: number
   companyName?: string
   userId: number | null
+  quotationId?: number | null
   status: OrderStatus
   channel: BuyChannel
   licitacionCode: string | null
@@ -40,6 +41,7 @@ export interface CreateOrderData {
   items: Array<{ productId: number; quantity: number }>
   channel?: BuyChannel
   licitacionCode?: string
+  quotationId?: number
   shippingAddress?: string
   shippingNotes?: string
   notes?: string

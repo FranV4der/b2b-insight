@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useApp } from '../context/AppContext.tsx'
+import { formatCLPWithSymbol } from '../utils/format.ts'
 import { getOrders } from '../services/api.ts'
 import type { Order } from '../types/order.ts'
 import { getChannelLabel, getOrderStatusClass, getOrderStatusLabel } from '../types/order.ts'
@@ -92,7 +93,7 @@ export function OrdersView() {
                 <td>{getChannelLabel(o.channel)}</td>
                 <td>{o.licitacionCode || '-'}</td>
                 <td>{o.itemCount ?? '-'}</td>
-                <td>${Number(o.total).toLocaleString('es-CL')}</td>
+                <td>{formatCLPWithSymbol(o.total)}</td>
                 <td>
                   <span className={`status-badge ${getOrderStatusClass(o.status)}`}>
                     {getOrderStatusLabel(o.status)}

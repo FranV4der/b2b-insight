@@ -68,7 +68,8 @@ export interface PriceList {
 export interface PriceListItem {
   id: number
   priceListId: number
-  productId: number
+  productId: number | null
+  pendingSku: string | null
   price: string
   discount: string
   minQuantity: number

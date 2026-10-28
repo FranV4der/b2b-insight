@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { getQuotes, downloadQuotePdf, updateQuoteStatus, type QuoteListItem } from '../services/api.ts'
+import { getQuotes, downloadQuotePdf, updateQuoteStatus, convertQuoteToOrder, type QuoteListItem } from '../services/api.ts'
+import { formatCLPWithSymbol } from '../utils/format.ts'
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pendiente',
@@ -10,6 +11,15 @@ const STATUS_LABELS: Record<string, string> = {
 
 const STATUS_OPTIONS = ['pending', 'approved', 'rejected', 'converted'] as const
 
+function quoteExpired(q: QuoteListItem): boolean {
+  const raw = q.validUntil ?? new Date(new Date(q.createdAt).getTime() + 15 * 24 * 60 * 60 * 1000).toISOString()
+  return new Date(raw).getTime() < Date.now()
+}
+
+function canConvert(q: QuoteListItem): boolean {
+  return (q.status === 'pending' || q.status === 'approved') && !q.orderNumber && !quoteExpired(q)
+}
+
 export function QuoteListManager() {
   const [data, setData] = useState<{
     key: number
@@ -17,7 +27,16 @@ export function QuoteListManager() {
     error: string
   } | null>(null)
   const [downloading, setDownloading] = useState<number | null>(null)
+  const [converting, setConverting] = useState<number | null>(null)
   const [error, setError] = useState('')
+
+  function reload() {
+    getQuotes({ perPage: 50 })
+      .then((res) => setData({ key: Date.now(), rows: res.data, error: '' }))
+      .catch((e) => {
+        setData({ key: Date.now(), rows: [], error: e instanceof Error ? e.message : 'Error al cargar' })
+      })
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -64,6 +83,21 @@ export function QuoteListManager() {
     }
   }
 
+  async function handleConvert(id: number) {
+    if (!confirm('¿Crear la orden de compra a nombre del cliente? Se descontará stock y se usará su crédito.')) return
+    setConverting(id)
+    setError('')
+    try {
+      const res = await convertQuoteToOrder(id)
+      alert(`Orden de compra ${res.orderNumber} creada correctamente.`)
+      reload()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo convertir la cotización')
+    } finally {
+      setConverting(null)
+    }
+  }
+
   if (loading) return <p className="muted">Cargando cotizaciones...</p>
   if (loadError) return <p className="form-error">{loadError}</p>
 
@@ -82,6 +116,8 @@ export function QuoteListManager() {
               <th>Canal</th>
               <th>Total (neto)</th>
               <th>Estado</th>
+              <th>Válida hasta</th>
+              <th>OC</th>
               <th>Fecha</th>
               <th></th>
             </tr>
@@ -94,7 +130,7 @@ export function QuoteListManager() {
                 <td>{q.userType === 'chilecompra' ? 'ChileCompra' : 'Convenio Marco'}
                   {q.licitacionCode ? ` (${q.licitacionCode})` : ''}
                 </td>
-                <td>${Number(q.total).toLocaleString('es-CL')}</td>
+                <td>{formatCLPWithSymbol(q.total)}</td>
                 <td>
                   <select
                     className={`status-select badge-${q.status}`}
@@ -106,11 +142,20 @@ export function QuoteListManager() {
                     ))}
                   </select>
                 </td>
+                <td>{q.validUntil ? new Date(q.validUntil).toLocaleDateString('es-CL') : '-'}</td>
+                <td>{q.orderNumber || '-'}</td>
                 <td>{new Date(q.createdAt).toLocaleDateString('es-CL')}</td>
                 <td>
-                  <button className="btn-sm" onClick={() => handleDownload(q.id)} disabled={downloading === q.id}>
-                    {downloading === q.id ? '...' : 'Descargar PDF'}
-                  </button>
+                  <div className="row-actions">
+                    <button className="btn-sm" onClick={() => handleDownload(q.id)} disabled={downloading === q.id}>
+                      {downloading === q.id ? '...' : 'PDF'}
+                    </button>
+                    {canConvert(q) && (
+                      <button className="btn-sm" onClick={() => handleConvert(q.id)} disabled={converting === q.id}>
+                        {converting === q.id ? '...' : 'Crear pedido'}
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

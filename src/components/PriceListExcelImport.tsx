@@ -5,6 +5,7 @@ import {
   type PriceListImportPreview,
   type PriceListImportResult,
 } from '../services/api.ts'
+import { formatCLPWithSymbol } from '../utils/format.ts'
 
 interface Props {
   priceListId: number
@@ -151,6 +152,9 @@ export function PriceListExcelImport({ priceListId, onImported }: Props) {
         <div className="preview-panel">
           <div className="preview-summary">
             <span>Precios válidos: <strong>{preview.valid_rows}</strong> de {preview.total_rows}</span>
+            {preview.pending_rows > 0 && (
+              <span className="muted"> · Pendientes (SKU sin producto): <strong>{preview.pending_rows}</strong></span>
+            )}
           </div>
 
           {preview.errors.length > 0 && (
@@ -163,13 +167,12 @@ export function PriceListExcelImport({ priceListId, onImported }: Props) {
             </div>
           )}
 
-          {preview.unmatched_skus.length > 0 && (
-            <div className="preview-errors">
-              <p>SKUs sin producto en tu catálogo ({preview.unmatched_skus.length}):</p>
-              <ul>
-                {preview.unmatched_skus.slice(0, 10).map((sku) => <li key={sku}>{sku}</li>)}
-                {preview.unmatched_skus.length > 10 && <li>... y {preview.unmatched_skus.length - 10} más</li>}
-              </ul>
+          {preview.pending_rows > 0 && (
+            <div className="preview-note">
+              <p>
+                {preview.pending_rows} SKU(s) aún no existen como producto. Se guardarán como
+                <strong> precios pendientes</strong> y se engancharán automáticamente al crear el producto con ese SKU.
+              </p>
             </div>
           )}
 
@@ -188,8 +191,8 @@ export function PriceListExcelImport({ priceListId, onImported }: Props) {
                 {preview.preview.map((row, i) => (
                   <tr key={i}>
                     <td>{row.sku}</td>
-                    <td>{row.productName}</td>
-                    <td>${row.price.toLocaleString('es-CL')}</td>
+                    <td>{row.pending ? <span className="muted">Pendiente</span> : row.productName}</td>
+                    <td>{formatCLPWithSymbol(row.price)}</td>
                     <td>{row.discount != null ? `${row.discount}%` : '-'}</td>
                     <td>{row.minQuantity ?? '-'}</td>
                   </tr>
@@ -203,9 +206,9 @@ export function PriceListExcelImport({ priceListId, onImported }: Props) {
             <button
               className="send-quote-btn"
               onClick={handleConfirm}
-              disabled={loading || preview.valid_rows === 0}
+              disabled={loading || preview.total_rows === 0}
             >
-              {loading ? 'Importando...' : `Confirmar (${preview.valid_rows} precios)`}
+              {loading ? 'Importando...' : `Confirmar (${preview.valid_rows} con producto, ${preview.pending_rows} pendientes)`}
             </button>
           </div>
         </div>
@@ -215,10 +218,7 @@ export function PriceListExcelImport({ priceListId, onImported }: Props) {
         <div className="import-result">
           <div className="result-success">
             <p>Importación de precios completada</p>
-            <p>Nuevos: <strong>{result.inserted}</strong> | Actualizados: <strong>{result.updated}</strong></p>
-            {result.unmatched_skus && result.unmatched_skus.length > 0 && (
-              <p className="muted">SKUs sin coincidencia: {result.unmatched_skus.length}</p>
-            )}
+            <p>Nuevos: <strong>{result.inserted}</strong> | Actualizados: <strong>{result.updated}</strong> | Pendientes: <strong>{result.pending}</strong></p>
           </div>
           {result.errors.length > 0 && (
             <div className="preview-errors">

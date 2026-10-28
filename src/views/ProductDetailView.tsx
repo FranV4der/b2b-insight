@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext.tsx'
 import { useAuth } from '../context/AuthContext.tsx'
 import { getProduct } from '../services/api.ts'
 import { getItemPrice, getPriceLabel, getPriceWithTax } from '../types/quote.ts'
+import { formatCLPWithSymbol } from '../utils/format.ts'
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   hoja_seguridad: 'Hoja de seguridad',
@@ -107,18 +108,13 @@ export function ProductDetailView() {
             {user ? (
               <>
                 <div className="detail-price-main">
-                  <span className="detail-price">${unitPrice.toLocaleString('es-CL')}</span>
+                  <span className="detail-price">{formatCLPWithSymbol(unitPrice)}</span>
                   <span className="price-tax">neto</span>
                   {userType && <span className="price-badge">{getPriceLabel(userType)}</span>}
                 </div>
                 <div className="detail-price-tax">
-                  Con IVA (19%): <strong>${getPriceWithTax(unitPrice).toLocaleString('es-CL')}</strong>
+                  Con IVA (19%): <strong>{formatCLPWithSymbol(getPriceWithTax(unitPrice))}</strong>
                 </div>
-                {userType && Number(product.regularPrice) !== unitPrice && (
-                  <span className="detail-price-regular">
-                    Precio regular: ${Number(product.regularPrice).toLocaleString('es-CL')}
-                  </span>
-                )}
               </>
             ) : (
               <span className="price-hidden">Inicia sesión para ver el precio</span>

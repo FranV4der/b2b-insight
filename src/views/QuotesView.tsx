@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useApp } from '../context/AppContext.tsx'
-import { getQuotes, downloadQuotePdf, type QuoteListItem } from '../services/api.ts'
+import { getQuotes, downloadQuotePdf, convertQuoteToOrder, type QuoteListItem } from '../services/api.ts'
 import { buildWhatsAppLink, buildQuoteWhatsAppMessage } from '../utils/whatsapp.ts'
 import type { QuoteItem } from '../types/quote.ts'
+import { formatCLPWithSymbol } from '../utils/format.ts'
 
 interface QuotesState {
   quotes: QuoteListItem[]
@@ -23,6 +24,15 @@ function quoteTotalWithIva(total: string): number {
   return Math.round(net + net * 0.19)
 }
 
+function isQuoteExpired(q: QuoteListItem): boolean {
+  const raw = q.validUntil ?? new Date(new Date(q.createdAt).getTime() + 15 * 24 * 60 * 60 * 1000).toISOString()
+  return new Date(raw).getTime() < Date.now()
+}
+
+function canConvert(q: QuoteListItem): boolean {
+  return (q.status === 'pending' || q.status === 'approved') && !q.orderNumber && !isQuoteExpired(q)
+}
+
 export function QuotesView() {
   const { navigate, items } = useApp()
   const [page, setPage] = useState(1)
@@ -33,6 +43,9 @@ export function QuotesView() {
     totalPages: 1,
   })
   const [downloading, setDownloading] = useState<number | null>(null)
+  const [converting, setConverting] = useState<number | null>(null)
+  const [convertError, setConvertError] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -61,7 +74,7 @@ export function QuotesView() {
 
     load()
     return () => { cancelled = true }
-  }, [page])
+  }, [page, refreshKey])
 
   async function handleDownload(id: number) {
     setDownloading(id)
@@ -80,13 +93,28 @@ export function QuotesView() {
     }
   }
 
+  async function handleConvert(id: number) {
+    if (!confirm('¿Convertir esta cotización en una orden de compra? Se descontará stock y se usará tu crédito disponible.')) return
+    setConverting(id)
+    setConvertError(null)
+    try {
+      const res = await convertQuoteToOrder(id)
+      alert(`Orden de compra ${res.orderNumber} creada correctamente.`)
+      setRefreshKey((k) => k + 1)
+    } catch (e: unknown) {
+      setConvertError(e instanceof Error ? e.message : 'No se pudo convertir la cotización')
+    } finally {
+      setConverting(null)
+    }
+  }
+
   function handleWhatsApp(quote: QuoteListItem) {
     const quoteItems: QuoteItem[] = quote.items.map((it) => ({
       product: {
         id: it.productId,
         sku: it.sku,
         name: it.name,
-        regularPrice: String(it.unitPrice),
+        priceListPrice: String(it.unitPrice),
       } as QuoteItem['product'],
       quantity: it.quantity,
     }))
@@ -123,16 +151,20 @@ export function QuotesView() {
           </button>
         </div>
       ) : (
+        <>
+        {convertError && <div className="form-error">{convertError}</div>}
         <table className="product-table orders-table">
           <thead>
             <tr>
               <th>N°</th>
               <th>Fecha</th>
+              <th>Válida hasta</th>
               <th>Canal</th>
               <th>Licitación</th>
               <th>Ítems</th>
               <th>Total (IVA incl.)</th>
               <th>Estado</th>
+              <th>OC</th>
               <th>Vendedor</th>
               <th></th>
             </tr>
@@ -142,15 +174,17 @@ export function QuotesView() {
               <tr key={q.id}>
                 <td>#{q.id}</td>
                 <td>{new Date(q.createdAt).toLocaleDateString('es-CL')}</td>
+                <td>{q.validUntil ? new Date(q.validUntil).toLocaleDateString('es-CL') : '-'}</td>
                 <td>{q.userType === 'chilecompra' ? 'ChileCompra' : 'Convenio Marco'}</td>
                 <td>{q.licitacionCode || '-'}</td>
                 <td>{q.items.reduce((sum, it) => sum + it.quantity, 0)}</td>
-                <td>${quoteTotalWithIva(q.total).toLocaleString('es-CL')}</td>
+                <td>{formatCLPWithSymbol(quoteTotalWithIva(q.total))}</td>
                 <td>
                   <span className={`status-badge ${q.status === 'approved' ? 'status-active' : q.status === 'rejected' ? 'status-inactive' : 'status-pending'}`}>
-                    {QUOTE_STATUS_LABELS[q.status] ?? q.status}
+                    {isQuoteExpired(q) && q.status !== 'converted' ? 'Expirada' : QUOTE_STATUS_LABELS[q.status] ?? q.status}
                   </span>
                 </td>
+                <td>{q.orderNumber || '-'}</td>
                 <td>{q.sellerName || '-'}</td>
                 <td className="actions-cell">
                   <button
@@ -165,11 +199,21 @@ export function QuotesView() {
                       WhatsApp
                     </button>
                   )}
+                  {canConvert(q) && (
+                    <button
+                      className="table-btn"
+                      onClick={() => handleConvert(q.id)}
+                      disabled={converting === q.id}
+                    >
+                      {converting === q.id ? 'Generando...' : 'Generar OC'}
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        </>
       )}
 
       {state.totalPages > 1 && (

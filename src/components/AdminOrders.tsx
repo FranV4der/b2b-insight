@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { getAdminOrders, getAdminOrder, updateOrderStatus, downloadOrderPdf, triggerBlobDownload } from '../services/api.ts'
 import type { Order, OrderStatus } from '../types/order.ts'
 import { getChannelLabel, getOrderStatusClass, getOrderStatusLabel } from '../types/order.ts'
+import { formatCLPWithSymbol } from '../utils/format.ts'
 
 interface OrdersState {
   orders: Order[]
@@ -145,13 +146,16 @@ export function AdminOrders() {
           <tbody>
             {state.orders.map((o) => (
               <tr key={o.id}>
-                <td>{o.orderNumber}</td>
+                <td>
+                  {o.orderNumber}
+                  {o.quotationId && <span className="badge-unclaimed" style={{ marginLeft: 6 }}>Cot. #{o.quotationId}</span>}
+                </td>
                 <td>{new Date(o.createdAt).toLocaleDateString('es-CL')}</td>
                 <td>{o.companyName || `Empresa #${o.companyId}`}</td>
                 <td>{getChannelLabel(o.channel)}</td>
                 <td>{o.licitacionCode || '-'}</td>
                 <td>{o.itemCount ?? '-'}</td>
-                <td>${Number(o.total).toLocaleString('es-CL')}</td>
+                <td>{formatCLPWithSymbol(o.total)}</td>
                 <td>
                   <span className={`status-badge ${getOrderStatusClass(o.status)}`}>
                     {getOrderStatusLabel(o.status)}
@@ -186,6 +190,9 @@ export function AdminOrders() {
           <div className="order-meta">
             <p><strong>Fecha:</strong> {new Date(detail.createdAt).toLocaleString('es-CL')}</p>
             <p><strong>Canal:</strong> {getChannelLabel(detail.channel)}</p>
+            {detail.quotationId && (
+              <p><strong>Origen:</strong> Cotización #{detail.quotationId} → {detail.orderNumber}</p>
+            )}
             {detail.licitacionCode && <p><strong>Licitación:</strong> {detail.licitacionCode}</p>}
             {detail.paymentMethod && <p><strong>Pago:</strong> {detail.paymentMethod}</p>}
             {detail.poNumber && <p><strong>OC / Referencia:</strong> {detail.poNumber}</p>}
@@ -211,8 +218,8 @@ export function AdminOrders() {
                     <td>{item.productSku || '-'}</td>
                     <td>{item.productName}</td>
                     <td>{item.quantity}</td>
-                    <td>${Number(item.unitPrice).toLocaleString('es-CL')}</td>
-                    <td>${Number(item.totalPrice).toLocaleString('es-CL')}</td>
+                    <td>{formatCLPWithSymbol(item.unitPrice)}</td>
+                    <td>{formatCLPWithSymbol(item.totalPrice)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -222,15 +229,15 @@ export function AdminOrders() {
           <div className="order-totals">
             <div className="total-breakdown">
               <span>Subtotal</span>
-              <span>${Number(detail.subtotal).toLocaleString('es-CL')}</span>
+              <span>{formatCLPWithSymbol(detail.subtotal)}</span>
             </div>
-            <div className="total-breakdown">
+            <div className="order-detail-summary-row">
               <span>IVA (19%)</span>
-              <span>${Number(detail.tax).toLocaleString('es-CL')}</span>
+              <span>{formatCLPWithSymbol(detail.tax)}</span>
             </div>
-            <div className="total-breakdown total-breakdown-final">
-              <strong>Total</strong>
-              <strong>${Number(detail.total).toLocaleString('es-CL')}</strong>
+            <div className="order-detail-summary-row order-detail-summary-total">
+              <span>Total</span>
+              <strong>{formatCLPWithSymbol(detail.total)}</strong>
             </div>
           </div>
 

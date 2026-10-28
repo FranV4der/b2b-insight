@@ -662,3 +662,117 @@ Trabajo de la sesión del 8/10 sobre el deploy en Railway/Vercel y la sincroniza
 - **Incidente local**: el backend corriendo era un `dist` viejo (7 oct) → `/api/customers` y `/api/price-lists` 500 porque el código viejo usa `customers.price_list_id` (columna ya dropeada). El login daba 200 pero el post-login fallaba ("Error interno del servidor"). Rebuild + restart del proceso. En Railway no pasa: deploy automático con código nuevo.
 - **Limpieza pendiente en el volume de Railway** (bloqueado para agentes): directorios espurios del `railway volume files upload` (`/uploads`, `/images/images`, `/logos/logos`, `/docs/docs`, `/pdfs/pdfs`). Borrarlos a mano con `railway volume files delete --volume b2b-insight-volume <ruta> --yes`. No afectan funcionamiento.
 - **Upload de imágenes al volume**: las imágenes demo ya quedaron servidas en `/app/uploads/images/...` (upload del contenido de `backend/uploads`); catalog con 7 productos e imágenes 200 en producción.
+
+#### Datos de conexión y dump (referencia rápida)
+- **BD remota (Railway, PostgreSQL 18)** — URL pública:
+  `postgresql://postgres:<PASSWORD>@iriguchi.proxy.rlwy.net:21946/railway` (credenciales en Railway → Variables → `DATABASE_URL`)
+- **BD local** — `postgresql://insight:<PASSWORD>@localhost:5432/insight_b2b` (ver `backend/.env`; PostgreSQL 14).
+- **Dump de producción**: `backend/dumps/railway_dump.sql` (persistente; ignorado por git vía `backend/dumps` en `.gitignore`). Generado con `/usr/lib/postgresql/18/bin/pg_dump`, `--no-owner --no-privileges --clean --if-exists`.
+- **Sincronizar local ← remoto** (repetible):
+  ```sh
+  /usr/lib/postgresql/18/bin/pg_dump "$DATABASE_URL_REMOTA" \
+    --no-owner --no-privileges --clean --if-exists -f backend/dumps/railway_dump.sql
+  # quitar la línea `SET transaction_timeout = 0;` (parámetro de PG17+, no existe en el PG14 local)
+  sed -i '/^SET transaction_timeout = 0;$/d' backend/dumps/railway_dump.sql
+  /usr/lib/postgresql/18/bin/psql "$DATABASE_URL_LOCAL" -v ON_ERROR_STOP=1 -f backend/dumps/railway_dump.sql
+  ```
+- **Nota**: al restaurar, los users/passwords locales pasan a ser los de producción. El `pg_dump` 14 local no admite servidor 18 (aborta por versión): usar siempre el binario de `/usr/lib/postgresql/18/bin`.
+- **Imágenes de productos (volume de Railway → local)**: el dump restaura las filas de `product_images`/`product_documents` y `companies.logo_url`, pero **no** los archivos físicos (viven en el volume de Railway, no en la BD). Tras un restore, las imágenes se ven rotas en local hasta copiar el volume. Con la sesión de Railway activa:
+  ```sh
+  export PATH="$PATH:/home/francisco/.npm-global/lib/node_modules/@railway/cli/bin"
+  railway volume files --volume b2b-insight-volume download /images /tmp/opencode/vol/images
+  railway volume files --volume b2b-insight-volume download /logos  /tmp/opencode/vol/logos
+  cp -rn /tmp/opencode/vol/images/. backend/uploads/images/
+  cp -rn /tmp/opencode/vol/logos/.  backend/uploads/logos/
+  ```
+  El volume se monta en `/app/uploads` (136MB, `b2b-insight-volume`); el CLI exige `--volume` **antes** del subcomando (`volume files --volume <v> list|download ...`). Los archivos físicos nunca van a git (`backend/uploads` no se versiona), así que copiarlos a local no genera conflictos con producción.
+
+---
+
+## Fase 10 (2026-10-23): La lista de precios es la fuente de verdad
+
+Cambio de modelo: **el precio de un producto proviene SIEMPRE de su lista de precios**, no del producto. Motivo: con 30 productos y listas de 3000 SKUs, obligar a recargar toda la lista cada vez que se crea un producto era inviable.
+
+#### Decisiones
+- La carga masiva de precios guarda **todos** los SKUs del Excel: los que ya existen como producto se enlazan; los demás quedan como **filas pendientes** (`price_list_items.product_id = null`, `pending_sku = SKU`) y se enganchan solos al crear el producto con ese SKU.
+- El producto ya **no exige precio** al crearse (`regular_price`, `price_chilecompra`, `price_convenio_marco` siguen en la BD como fallback legacy, pero dejan de usarse y de pedirse).
+- Un producto sin precio en la lista del comprador **no se muestra** en el catálogo. Si el comprador no tiene lista asignada, no ve catálogo.
+- Al guardar un producto cuyo SKU no está en ninguna lista activa, se **advierte** (no se bloquea): el orden natural es crear el producto y luego cargar la lista.
+- Al confirmar un pedido, si un producto del carrito no está en la lista del comprador, la orden se **rechaza** (400) en vez de caer al precio base.
+
+#### Backend
+- **Schema** (`src/db/schema.ts`): `price_list_items.product_id` ahora nullable; nueva columna `pending_sku` e índices `idx_price_list_items_pending_sku`.
+- **Migración** (`src/scripts/migrate-price-list-pending.ts`, `npm run db:migrate-price-list-pending`): idempotente; agrega `pending_sku`, hace nullable `product_id`, rellena `pending_sku` desde el producto enlazado y crea el índice parcial único `uq_price_list_items_list_pending_sku` por `(price_list_id, lower(pending_sku))` para filas pendientes.
+- **Servicio** (`src/services/priceListLink.ts`): `linkPendingPriceItems(productId, sku)` — engancha las filas pendientes por SKU (case-insensitive). Usado por `products.ts` (POST/PUT) e `import.ts` (carga masiva de productos).
+- **`priceLists.ts`**: `POST /:id/import-prices` guarda todos los SKUs (pendientes incluidos), devuelve `pending`/`pending_rows`; `GET /:id` incluye `pendingSku`.
+- **`products.ts`**: POST/PUT ya no exigen precio y devuelven `linkedPriceItems` (cuántas pendientes se engancharon). El catálogo (`GET /`) oculta productos sin precio en la lista resuelta y aplica los filtros `min_price`/`max_price` sobre el precio de lista (no sobre `regular_price`).
+- **`orders.ts`**: elimina el fallback a `regular_price`; rechaza con 400 los productos sin precio en la lista del comprador.
+- **`import.ts`**: la carga masiva de productos ya no exige `regular_price`; engancha pendientes tras crear/actualizar.
+
+#### Frontend
+- `src/services/api.ts`: `PriceListImportPreview` incluye `pending_rows`/`pending`; `PriceListImportResult` incluye `pending`; `CreateProductData.regularPrice` opcional; `ProductSaveResult` con `linkedPriceItems`.
+- `src/components/ProductForm.tsx`: se quitó el campo **Precio Regular** (y su validación); al guardar avisa si el SKU no quedó en ninguna lista activa.
+- `src/components/PriceListExcelImport.tsx`: muestra "Pendientes (SKU sin producto)" en la vista previa y en el resultado; el botón confirma pendientes aunque no haya productos existentes.
+- `src/components/PriceListManager.tsx`: la tabla de ítems muestra las filas pendientes ("Pendiente (sin producto)").
+- `src/components/ProductTable.tsx`: la columna "Precio de lista" muestra `priceListPrice` (o `—`); se quitó el `regularPrice`.
+- `src/views/ProductDetailView.tsx`: se quitó la comparación "Precio regular".
+- `src/types/quote.ts` (`getItemPrice`): sin fallback a `regularPrice` → 0 si no hay precio de lista.
+- `src/types/auth.ts`: `PriceListItem.productId` nullable + `pendingSku`.
+
+#### Despliegue
+Correr `npm run db:migrate-price-list-pending` **antes** de `npm run db:push` la primera vez (igual que `db:migrate-price-lists`). Verificado en local: preview/confirm de import, filas pendientes persistidas, enganche automático al crear el producto (producto 34 → item ligado), y catálogo del comprador ocultando un producto sin precio en su lista (30 → 29).
+
+Aplicado en local: `npm run db:migrate-price-list-pending` + `npm run db:push` corridos OK. **Pendiente para producción**: correr ambos (migración antes de push).
+
+---
+
+## Fase 11 (2026-10-23): Columna Marca, fix de auth en carga masiva e imágenes desde el volume
+
+Cierre de la sesión del 23/10. Cambios menores + sincronización de imágenes y documentación de accesos.
+
+#### Frontend
+- `src/components/ProductTable.tsx`: nueva columna **Marca** (`brandName`, o `—`) en el catálogo admin, entre Nombre y Precio. El `colSpan` de la fila vacía pasó de 7 a 8.
+- **Fix de autenticación en cargas masivas** (`src/services/api.ts`): `importPriceListPrices` y `importProducts` no enviaban el header `Authorization`, por lo que devolvían `401 "Token de autenticación requerido"`. Se agregó `headers: authHeaders()` en ambos `fetch` (mismo bug que la plantilla Excel en la Fase 9).
+
+#### Imágenes de productos (volume de Railway → local)
+- Tras restaurar la BD desde Railway, las imágenes se veían rotas: el dump trae las filas de `product_images` pero **no** los archivos físicos (viven en el volume). Se descargó el volume `b2b-insight-volume` con `railway volume files --volume b2b-insight-volume download /images ...` y se copió a `backend/uploads/images/` (89 archivos). Verificado: 0 referencias faltantes y todas las URLs sirven 200.
+
+#### Ops / documentación
+- `backend/.gitignore` (raíz): `backend/dumps` ignorado por git. Dump de producción persistido en `backend/dumps/railway_dump.sql`.
+- `AGENTS.md` y `CHANGELOG.md`: documentados los accesos (BD remota pública de Railway, BD local, dump y el procedimiento de sync), y el modelo "lista = fuente de verdad".
+
+#### Pendiente para mañana
+- Correr `db:migrate-price-list-pending` + `db:push` en producción (Railway).
+- Cargar las listas de precios reales de IMEX (3000 SKUs) y validar el flujo de pendientes → enganche con datos reales.
+- Limpiar archivos sueltos en la raíz del repo: `LISTA DE PRECIOS GOBIERNO 2026-2027.xlsx`, `LP23C - Lista 10% dcto.xlsx`, `LP23C - Lista 15% dcto.xlsx`, `template_lista_precios.xlsx` y lock files `~lock.*`. Limpiar el directorio espurio `backend/uploads/images/images/` del volume.
+- Revisar si `RegularPrice`/`priceChilecompra`/`priceConvenioMarco` de `products` pueden retirarse del todo (hoy quedan como columnas legacy sin uso).
+
+---
+
+## Fase 12 (2026-10-26): Ciclo B2B — Cotización → Orden de Compra
+
+Se conecta el flujo que estaba en dos islas: una cotización guardada ahora puede convertirse en orden de compra, con trazabilidad y precios congelados.
+
+#### Backend
+- **Nuevo endpoint `POST /api/quotes/:id/convert`** (`backend/src/routes/quotes.ts`): convierte una cotización en pedido. Accesible al comprador dueño, al vendedor de la empresa y al admin (vía `quoteScope`).
+  - Valida estado (no `converted`/`rejected`) y **validez de 15 días** desde `createdAt`.
+  - Usa los **precios congelados** de la cotización (`items[].unitPrice`), no la lista vigente.
+  - Valida comprador activo, stock por producto y límite de crédito disponible.
+  - En transacción: crea `orders` con `quotation_id`, ítems, descuenta stock, suma `customers.credit_used` y marca la cotización `converted`.
+  - Notifica in-app al vendedor y al comprador.
+- `GET /api/quotes` y `GET /api/quotes/:id`: ahora incluyen `orderId`, `orderNumber`, `orderStatus` y `validUntil` (15 días desde la creación), cruzando con `orders.quotation_id`.
+- El `POST /api/orders` ya aceptaba `quotationId` (precio congelado + marca la cotización); se mantiene como camino alternativo del checkout.
+
+#### Frontend
+- `QuotesView.tsx` (comprador): nueva columna **Válida hasta**, columna **OC** (número generado) y botón **Generar OC** para cotizaciones pendientes/aprobadas, vigentes y no convertidas.
+- `QuoteListManager.tsx` (vendedor/admin): columnas **Válida hasta** y **OC**, y botón **Crear pedido** que genera la OC a nombre del cliente.
+- `CartView.tsx`: si la cuenta no está activa se oculta el formulario de compra y la única acción es guardar cotización (con mensaje explicativo). El formulario de compra ya no pide método de pago ni número de OC: el pago se toma de la condición del cliente y el número de OC se genera al confirmar.
+- `AdminOrders.tsx`: badge "Cot. #N" en el listado y línea "Origen: Cotización #N → OC-..." en el detalle.
+- `OrderDetailView.tsx`: muestra "Origen: Cotización #N".
+- `services/api.ts`: `convertQuoteToOrder(id)`; `QuoteListItem` amplía `orderId/orderNumber/orderStatus/validUntil`; `Order.quotationId`; `CreateOrderData.quotationId`.
+- CSS: `.row-actions`.
+
+#### Verificado
+- Comprador convierte su cotización: OC `OC-20261026-GAKRO9`, stock 50→49, crédito +10.799; cotización pasa a `converted`; el vendedor la ve con su `orderNumber`.
+- Vendedor (`empresa`) convierte una cotización ajena: OC `OC-20261026-GKLYQI`; doble conversión devuelve 400.
+- `lint` y `build` (frontend y backend) en verde. Datos de prueba revertidos (stock/crédito restaurados).

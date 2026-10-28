@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Product } from '../types/product.ts'
 import { getProducts, deleteProduct, updateProduct } from '../services/api.ts'
+import { formatCLPWithSymbol } from '../utils/format.ts'
 
 interface Props {
   onEdit: (product: Product) => void
@@ -82,7 +83,8 @@ export function ProductTable({ onEdit, refreshKey }: Props) {
                 <th className="thumb-cell">Imagen</th>
                 <th>SKU</th>
                 <th>Nombre</th>
-                <th>Precio</th>
+                <th>Marca</th>
+                <th>Precio de lista</th>
                 <th>Stock</th>
                 <th>Destacado</th>
                 <th>Acciones</th>
@@ -100,7 +102,12 @@ export function ProductTable({ onEdit, refreshKey }: Props) {
                   </td>
                   <td className="sku-cell">{p.sku}</td>
                   <td>{p.name}</td>
-                  <td>${Number(p.regularPrice).toLocaleString('es-CL')}</td>
+                  <td>{p.brandName ?? '—'}</td>
+                  <td>
+                    {p.priceListPrice
+                      ? formatCLPWithSymbol(p.priceListPrice)
+                      : <span className="muted">—</span>}
+                  </td>
                   <td>{p.stock}</td>
                   <td>
                     <button
@@ -118,7 +125,7 @@ export function ProductTable({ onEdit, refreshKey }: Props) {
                 </tr>
               ))}
               {products.length === 0 && (
-                <tr><td colSpan={7} className="empty-cell">No hay productos</td></tr>
+                <tr><td colSpan={8} className="empty-cell">No hay productos</td></tr>
               )}
             </tbody>
           </table>

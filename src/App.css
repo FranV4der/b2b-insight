@@ -972,6 +972,12 @@ main {
   padding: 0.3rem 0.75rem;
 }
 
+.row-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
 .muted {
   color: var(--text-light);
   font-size: 0.75rem;

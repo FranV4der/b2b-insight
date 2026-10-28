@@ -482,9 +482,13 @@ export const priceListItems = pgTable(
     priceListId: integer("price_list_id")
       .references(() => priceLists.id, { onDelete: "cascade" })
       .notNull(),
+    // Puede ser null cuando el precio proviene de un SKU aún no existente en el
+    // catálogo (fila "pendiente"). Al crear el producto con ese SKU, se engancha.
     productId: integer("product_id")
-      .references(() => products.id, { onDelete: "cascade" })
-      .notNull(),
+      .references(() => products.id, { onDelete: "cascade" }),
+    // SKU de una fila pendiente (sin producto). Se guarda en mayúsculas/minúsculas
+    // originales; el match es case-insensitive vía índice parcial lower(...).
+    pendingSku: varchar("pending_sku", { length: 100 }),
     price: decimal("price", { precision: 12, scale: 2 }).notNull(),
     discount: decimal("discount", { precision: 5, scale: 2 }).default("0"),
     minQuantity: integer("min_quantity").notNull().default(1),
@@ -497,6 +501,7 @@ export const priceListItems = pgTable(
       t.priceListId,
       t.productId
     ),
+    pendingIdx: index("idx_price_list_items_pending_sku").on(t.pendingSku),
   })
 );
 

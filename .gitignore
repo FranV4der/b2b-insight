@@ -17,6 +17,7 @@ dist-ssr
 # Backend
 backend/drizzle
 backend/.env
+backend/dumps
 *.pid
 
 # Editor directories and files
@@ -30,3 +31,4 @@ backend/.env
 *.sln
 *.sw?
 .vercel
+.aider*

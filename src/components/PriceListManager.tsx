@@ -3,6 +3,7 @@ import type { PriceList, PriceListDetail, PriceListItem } from '../types/auth.ts
 import type { Product } from '../types/product.ts'
 import { getProducts } from '../services/api.ts'
 import { PriceListExcelImport } from './PriceListExcelImport.tsx'
+import { formatCLPWithSymbol } from '../utils/format.ts'
 
 const API_BASE = '/api'
 
@@ -222,7 +223,9 @@ export function PriceListManager() {
               <div className="pl-section-title">Agregar producto</div>
               <AddProductForm
                 products={products}
-                existingIds={selectedList.items.map((i) => i.productId)}
+                existingIds={selectedList.items
+                  .map((i) => i.productId)
+                  .filter((v): v is number => v != null)}
                 onAdd={handleAddItems}
               />
 
@@ -336,8 +339,12 @@ function PriceListItemRow({
 
   return (
     <tr>
-      <td className="sku-cell">{item.productSku || '-'}</td>
-      <td>{item.productName || `Producto #${item.productId}`}</td>
+      <td className="sku-cell">{item.productSku || item.pendingSku || '-'}</td>
+      <td>
+        {item.productId == null
+          ? <span className="muted">Pendiente (sin producto)</span>
+          : (item.productName || `Producto #${item.productId}`)}
+      </td>
       {editing ? (
         <>
           <td colSpan={2}>
@@ -353,7 +360,7 @@ function PriceListItemRow({
         </>
       ) : (
         <>
-          <td>${Number(item.price).toLocaleString('es-CL')}</td>
+          <td>{formatCLPWithSymbol(item.price)}</td>
           <td>{Number(item.discount) > 0 ? `${item.discount}%` : '-'}</td>
           <td className="actions-cell">
             <button className="table-btn" onClick={() => setEditing(true)}>Editar</button>

@@ -25,7 +25,6 @@ interface FormData {
   name: string
   description: string
   shortDesc: string
-  regularPrice: string
   stock: string
   status: string
   featured: boolean
@@ -41,7 +40,6 @@ const EMPTY_FORM: FormData = {
   name: '',
   description: '',
   shortDesc: '',
-  regularPrice: '',
   stock: '0',
   status: 'active',
   featured: false,
@@ -58,7 +56,6 @@ function toForm(p: Product): FormData {
     name: p.name,
     description: p.description || '',
     shortDesc: p.shortDesc || '',
-    regularPrice: p.regularPrice || '',
     stock: String(p.stock),
     status: p.status,
     featured: !!p.featured,
@@ -257,20 +254,16 @@ export function ProductForm({ product, onSaved, onCancel }: Props) {
       setError('SKU y Nombre son requeridos')
       return
     }
-    if (!form.regularPrice || Number(form.regularPrice) < 0) {
-      setError('Precio regular es requerido y debe ser >= 0')
-      return
-    }
 
     setSaving(true)
     let createdId: number | null = null
+    let linkedPriceItems: number | undefined
     try {
       const data = {
         sku: form.sku.trim(),
         name: form.name.trim(),
         description: form.description.trim() || undefined,
         shortDesc: form.shortDesc.trim() || undefined,
-        regularPrice: Number(form.regularPrice),
         stock: Number(form.stock) || 0,
         status: form.status,
         featured: form.featured,
@@ -283,10 +276,12 @@ export function ProductForm({ product, onSaved, onCancel }: Props) {
       }
 
       if (product) {
-        await updateProduct(product.id, data)
+        const saved = await updateProduct(product.id, data)
+        linkedPriceItems = saved.linkedPriceItems
       } else {
         const created = await createProduct(data)
         createdId = created.id
+        linkedPriceItems = created.linkedPriceItems
         if (pendingImages.length > 0) {
           await uploadImages(created.id, pendingImages.map((p) => p.file))
         }
@@ -304,6 +299,11 @@ export function ProductForm({ product, onSaved, onCancel }: Props) {
         if (pendingPdf) {
           await uploadTechnicalSheet(created.id, pendingPdf)
         }
+      }
+
+      if (!linkedPriceItems) {
+        const message = `El producto "${data.sku}" se guardó, pero no pertenece a ninguna lista de precios activa. Asígnale un precio en una lista para que sea visible en el catálogo.`
+        if (typeof window !== 'undefined' && window.alert) window.alert(message)
       }
       onSaved()
     } catch (err) {
@@ -348,12 +348,8 @@ export function ProductForm({ product, onSaved, onCancel }: Props) {
       </div>
 
       <div className="form-section">
-        <h4>Precios y Stock</h4>
+        <h4>Stock</h4>
         <div className="form-grid">
-          <div className="form-field">
-            <label htmlFor="pf-price">Precio Regular *</label>
-            <input id="pf-price" type="number" min="0" step="1" value={form.regularPrice} onChange={(e) => update('regularPrice', e.target.value)} />
-          </div>
           <div className="form-field">
             <label htmlFor="pf-stock">Stock</label>
             <input id="pf-stock" type="number" min="0" value={form.stock} onChange={(e) => update('stock', e.target.value)} />

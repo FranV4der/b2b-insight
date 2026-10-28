@@ -1,7 +1,7 @@
 import { Router } from "express";
 import PDFDocument from "pdfkit";
 import { db } from "../db/index.js";
-import { orders, orderItems, products, priceListItems, customers, users } from "../db/schema.js";
+import { orders, orderItems, products, priceListItems, customers, users, quotations } from "../db/schema.js";
 import { eq, and, or, inArray, desc, sql, isNotNull, type SQL } from "drizzle-orm";
 import { requireAuth, requireEmpresa, isAdminRequest, scopeCompanyId, scopeCustomerId } from "../middleware/auth.js";
 import { resolvePriceContext } from "../services/pricing.js";
@@ -105,7 +105,40 @@ ordersRouter.post("/", requireAuth, async (req, res) => {
       channel,
       licitacionCode,
       customerId: actingCustomerId,
+      quotationId: rawQuotationId,
     } = req.body;
+
+    let quote: typeof quotations.$inferSelect | null = null;
+    const quotePriceMap = new Map<number, number>();
+    if (rawQuotationId) {
+      const qId = Number(rawQuotationId);
+      const [foundQuote] = await db.select().from(quotations).where(eq(quotations.id, qId));
+      if (!foundQuote) {
+        res.status(404).json({ error: "Cotización no encontrada" });
+        return;
+      }
+      if (foundQuote.status === "converted") {
+        res.status(400).json({ error: "Esta cotización ya fue convertida en una orden de compra" });
+        return;
+      }
+      if (foundQuote.status === "rejected") {
+        res.status(400).json({ error: "No se puede convertir una cotización rechazada" });
+        return;
+      }
+      const quoteAgeDays = (Date.now() - new Date(foundQuote.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+      if (quoteAgeDays > 15) {
+        res.status(400).json({ error: "La cotización ha expirado (validez máxima de 15 días corridos)" });
+        return;
+      }
+      quote = foundQuote;
+      if (Array.isArray(quote.items)) {
+        for (const qi of quote.items as Array<{ productId?: number; unitPrice?: number }>) {
+          if (qi.productId != null && qi.unitPrice != null) {
+            quotePriceMap.set(Number(qi.productId), Number(qi.unitPrice));
+          }
+        }
+      }
+    }
 
     // El admin de plataforma no tiene comprador propio: opera en nombre de uno.
     let buyerCustomerId: number | null;
@@ -194,7 +227,7 @@ ordersRouter.post("/", requireAuth, async (req, res) => {
 
     const priceByProduct = new Map<number, { price: string; discount: string }>();
     for (const p of priceItems) {
-      if (!priceByProduct.has(p.productId)) {
+      if (p.productId != null && !priceByProduct.has(p.productId)) {
         priceByProduct.set(p.productId, { price: p.price, discount: p.discount || "0" });
       }
     }
@@ -223,10 +256,19 @@ ordersRouter.post("/", requireAuth, async (req, res) => {
         return;
       }
 
-      const pl = priceByProduct.get(productId);
-      const rawPrice = pl ? Number(pl.price) : Number(product.regularPrice) || 0;
-      const discount = pl ? Number(pl.discount) || 0 : 0;
-      const unitPrice = roundCLP(rawPrice * (1 - discount / 100));
+      let unitPrice: number;
+      if (quotePriceMap.has(productId)) {
+        unitPrice = quotePriceMap.get(productId)!;
+      } else {
+        const pl = priceByProduct.get(productId);
+        if (!pl) {
+          res.status(400).json({ error: `El producto "${product.name}" no tiene precio en tu lista de precios` });
+          return;
+        }
+        const rawPrice = Number(pl.price);
+        const discount = Number(pl.discount) || 0;
+        unitPrice = roundCLP(rawPrice * (1 - discount / 100));
+      }
       const totalPrice = unitPrice * qty;
       subtotal += totalPrice;
 
@@ -269,7 +311,7 @@ ordersRouter.post("/", requireAuth, async (req, res) => {
       const avail = Number(buyer.creditLimit) - used;
       if (total > avail) {
         res.status(400).json({
-          error: `Línea de crédito insuficiente (disponible: $${avail.toLocaleString("es-CL")})`,
+          error: `Línea de crédito insuficiente (disponible: $${new Intl.NumberFormat('es-CL').format(Math.round(avail))})`,
         });
         return;
       }
@@ -286,6 +328,7 @@ ordersRouter.post("/", requireAuth, async (req, res) => {
           buyerEmail: buyer?.email ?? buyerUser[0]?.email ?? null,
           buyerRut: buyer?.rut ?? null,
           userId: auth.userId,
+          quotationId: quote ? quote.id : null,
           status: "pending",
           channel: orderChannel,
           licitacionCode: orderChannel === "chilecompra" ? licitacionCode.trim() : null,
@@ -328,16 +371,24 @@ ordersRouter.post("/", requireAuth, async (req, res) => {
           .where(eq(customers.id, buyer.id));
       }
 
+      if (quote) {
+        await tx
+          .update(quotations)
+          .set({ status: "converted", updatedAt: new Date() })
+          .where(eq(quotations.id, quote.id));
+      }
+
       return orderRow;
     });
 
     const buyerLabel = buyer?.name ?? buyerUser[0]?.name ?? "un cliente";
+    const quoteNote = quote ? ` (generada desde cotización #${quote.id})` : "";
 
     for (const providerCompanyId of sellerCompanyIds) {
       await safeNotify({
         companyId: providerCompanyId,
         title: "Nueva orden de compra recibida",
-        message: `Recibiste la orden de compra ${order.orderNumber} de ${buyerLabel}. Revísalo en el panel de administración.`,
+        message: `Recibiste la orden de compra ${order.orderNumber}${quoteNote} de ${buyerLabel}. Revísalo en el panel de administración.`,
         referenceId: order.id,
         referenceType: "order",
       });
@@ -511,6 +562,7 @@ ordersRouter.get("/admin", requireAuth, requireEmpresa, async (req, res) => {
           companyId: orders.companyId,
           customerId: orders.customerId,
           companyName: customers.name,
+          quotationId: orders.quotationId,
           status: orders.status,
           channel: orders.channel,
           licitacionCode: orders.licitacionCode,

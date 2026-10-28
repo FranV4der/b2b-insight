@@ -5,12 +5,13 @@ import { db } from "../db/index.js";
 import { products, productCategories, categories } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 import { requireAuth, requireEmpresa } from "../middleware/auth.js";
+import { linkPendingPriceItems } from "../services/priceListLink.js";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 export const importRouter = Router();
 
-const REQUIRED_COLUMNS = ["sku", "name", "regular_price"];
+const REQUIRED_COLUMNS = ["sku", "name"];
 
 interface ImportRow {
   sku?: string;
@@ -95,15 +96,15 @@ function parseRows(rows: unknown[]): { normalized: ImportRow[]; errors: string[]
       errors.push(`Fila ${rowNum}: Nombre vacío`);
       return;
     }
-    if (obj.regular_price === undefined || obj.regular_price === null || obj.regular_price === "") {
-      errors.push(`Fila ${rowNum}: Precio regular vacío`);
-      return;
-    }
 
-    const price = Math.round(Number(obj.regular_price));
-    if (isNaN(price) || price < 0) {
-      errors.push(`Fila ${rowNum}: Precio regular inválido (${obj.regular_price})`);
-      return;
+    let price: number | undefined;
+    if (obj.regular_price !== undefined && obj.regular_price !== null && obj.regular_price !== "") {
+      const parsed = Math.round(Number(obj.regular_price));
+      if (isNaN(parsed) || parsed < 0) {
+        errors.push(`Fila ${rowNum}: Precio regular inválido (${obj.regular_price})`);
+        return;
+      }
+      price = parsed;
     }
 
     normalized.push({
@@ -219,9 +220,9 @@ importRouter.post("/import", requireAuth, requireEmpresa, upload.single("file"),
               name: row.name,
               description: row.description || null,
               shortDesc: row.short_desc || null,
-              regularPrice: String(row.regular_price),
-              priceChilecompra: row.price_chilecompra ? String(row.price_chilecompra) : null,
-              priceConvenioMarco: row.price_convenio_marco ? String(row.price_convenio_marco) : null,
+              ...(row.regular_price !== undefined && { regularPrice: String(row.regular_price) }),
+              ...(row.price_chilecompra !== undefined && { priceChilecompra: String(row.price_chilecompra) }),
+              ...(row.price_convenio_marco !== undefined && { priceConvenioMarco: String(row.price_convenio_marco) }),
               stock: Number(row.stock) || 0,
               status: row.status || "active",
               updatedAt: new Date(),
@@ -241,6 +242,7 @@ importRouter.post("/import", requireAuth, requireEmpresa, upload.single("file"),
             }
           }
 
+          await linkPendingPriceItems(existing.id, sku);
           updated++;
         } else {
           const [product] = await db
@@ -250,9 +252,9 @@ importRouter.post("/import", requireAuth, requireEmpresa, upload.single("file"),
               name: row.name!,
               description: row.description || null,
               shortDesc: row.short_desc || null,
-              regularPrice: String(row.regular_price),
-              priceChilecompra: row.price_chilecompra ? String(row.price_chilecompra) : null,
-              priceConvenioMarco: row.price_convenio_marco ? String(row.price_convenio_marco) : null,
+              ...(row.regular_price !== undefined && { regularPrice: String(row.regular_price) }),
+              ...(row.price_chilecompra !== undefined && { priceChilecompra: String(row.price_chilecompra) }),
+              ...(row.price_convenio_marco !== undefined && { priceConvenioMarco: String(row.price_convenio_marco) }),
               stock: Number(row.stock) || 0,
               status: row.status || "active",
             })
@@ -270,6 +272,7 @@ importRouter.post("/import", requireAuth, requireEmpresa, upload.single("file"),
             }
           }
 
+          await linkPendingPriceItems(product.id, sku);
           created++;
         }
       } catch (err) {

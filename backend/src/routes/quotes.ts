@@ -1,9 +1,10 @@
 import { Router } from "express";
 import PDFDocument from "pdfkit";
 import { db } from "../db/index.js";
-import { quotations, products, companies, customers, users } from "../db/schema.js";
+import { quotations, products, companies, customers, users, orders, orderItems } from "../db/schema.js";
 import { eq, sql, desc, and, inArray, type SQL } from "drizzle-orm";
 import { requireAuth, requireEmpresa, requireCotizador, scopeCompanyId, scopeCustomerId } from "../middleware/auth.js";
+import { notifyCompanyUsers, notifyCustomerUsers } from "../services/notifications.js";
 
 export const quotesRouter = Router();
 
@@ -36,19 +37,45 @@ const QUOTE_STATUS_LABELS: Record<string, string> = {
   converted: "Convertida en pedido",
 };
 
+/** Validez de una cotización: 15 días corridos desde su creación. */
+const QUOTE_VALIDITY_DAYS = 15;
+
+function quoteValidUntil(createdAt: Date | string): Date {
+  return new Date(new Date(createdAt).getTime() + QUOTE_VALIDITY_DAYS * 24 * 60 * 60 * 1000);
+}
+
+function generateOrderNumber(): string {
+  const d = new Date();
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `OC-${ymd}-${rand}`;
+}
+
 async function attachSeller(rows: Array<Record<string, unknown>>): Promise<Array<Record<string, unknown>>> {
   const companyIds = [...new Set(rows.map((r) => r.companyId).filter((c): c is number => c != null))];
+  const quoteIds = [...new Set(rows.map((r) => r.id).filter((c): c is number => c != null))];
   const sellers = companyIds.length
     ? await db
         .select({ id: companies.id, name: companies.name, contactPhone: companies.contactPhone, phone: companies.phone })
         .from(companies)
         .where(inArray(companies.id, companyIds))
     : [];
+  const linkedOrders = quoteIds.length
+    ? await db
+        .select({ id: orders.id, orderNumber: orders.orderNumber, quotationId: orders.quotationId, status: orders.status })
+        .from(orders)
+        .where(inArray(orders.quotationId, quoteIds))
+    : [];
   const byId = new Map(sellers.map((s) => [s.id, s]));
+  const orderByQuote = new Map(linkedOrders.map((o) => [o.quotationId as number, o]));
   return rows.map((r) => ({
     ...r,
     sellerName: r.companyId ? byId.get(r.companyId as number)?.name ?? null : null,
     sellerPhone: r.companyId ? byId.get(r.companyId as number)?.contactPhone ?? byId.get(r.companyId as number)?.phone ?? null : null,
+    orderId: r.id ? orderByQuote.get(r.id as number)?.id ?? null : null,
+    orderNumber: r.id ? orderByQuote.get(r.id as number)?.orderNumber ?? null : null,
+    orderStatus: r.id ? orderByQuote.get(r.id as number)?.status ?? null : null,
+    validUntil: r.createdAt ? quoteValidUntil(r.createdAt as string | Date).toISOString() : null,
   }));
 }
 
@@ -175,6 +202,214 @@ quotesRouter.put("/:id/status", requireAuth, requireEmpresa, async (req, res) =>
   }
 });
 
+/**
+ * Convierte una cotización en orden de compra. Sirve al comprador dueño de la
+ * cotización, al vendedor de la empresa y al admin. Respeta los precios
+ * congelados en la cotización, valida stock/crédito/estado del comprador y
+ * descuenta inventario igual que un checkout normal.
+ */
+quotesRouter.post("/:id/convert", requireAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const scope = quoteScope(id, req.auth!);
+    if (!scope) {
+      res.status(404).json({ error: "Cotización no encontrada" });
+      return;
+    }
+
+    const [quotation] = await db.select().from(quotations).where(scope);
+    if (!quotation) {
+      res.status(404).json({ error: "Cotización no encontrada" });
+      return;
+    }
+
+    if (quotation.status === "converted") {
+      res.status(400).json({ error: "Esta cotización ya fue convertida en una orden de compra" });
+      return;
+    }
+    if (quotation.status === "rejected") {
+      res.status(400).json({ error: "No se puede convertir una cotización rechazada" });
+      return;
+    }
+    if (quoteValidUntil(quotation.createdAt).getTime() < Date.now()) {
+      res.status(400).json({ error: `La cotización expiró (validez de ${QUOTE_VALIDITY_DAYS} días)` });
+      return;
+    }
+
+    const quoteItems = Array.isArray(quotation.items) ? quotation.items : [];
+    const productIds = quoteItems
+      .map((it) => Number(it.productId))
+      .filter((n) => Number.isInteger(n) && n > 0);
+    if (!productIds.length) {
+      res.status(400).json({ error: "La cotización no tiene productos válidos" });
+      return;
+    }
+
+    const productRows = await db.select().from(products).where(inArray(products.id, productIds));
+    const productsById = new Map(productRows.map((p) => [p.id, p]));
+
+    const orderLines: Array<{
+      productId: number;
+      productName: string;
+      productSku: string | null;
+      quantity: number;
+      unitPrice: number;
+      totalPrice: number;
+    }> = [];
+    let subtotal = 0;
+
+    for (const it of quoteItems) {
+      const productId = Number(it.productId);
+      const product = productsById.get(productId);
+      if (!product || product.status !== "active") {
+        res.status(400).json({ error: `El producto "${it.name}" ya no está disponible` });
+        return;
+      }
+      const qty = Math.max(1, Math.floor(Number(it.quantity)));
+      if (product.stock < qty) {
+        res.status(400).json({ error: `Stock insuficiente para "${product.name}" (disponible: ${product.stock})` });
+        return;
+      }
+      // Precio congelado al momento de cotizar.
+      const unitPrice = Math.round(Number(it.unitPrice));
+      if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
+        res.status(400).json({ error: `La cotización no tiene precio válido para "${product.name}"` });
+        return;
+      }
+      const totalPrice = unitPrice * qty;
+      subtotal += totalPrice;
+      orderLines.push({
+        productId,
+        productName: product.name,
+        productSku: product.sku,
+        quantity: qty,
+        unitPrice,
+        totalPrice,
+      });
+    }
+
+    const tax = Math.round(subtotal * TAX_RATE);
+    const total = subtotal + tax;
+
+    const buyer = quotation.customerId
+      ? (await db.select().from(customers).where(eq(customers.id, quotation.customerId)))[0] ?? null
+      : null;
+
+    if (buyer && buyer.status !== "active") {
+      res.status(400).json({
+        error: buyer.status === "suspended"
+          ? "La cuenta del comprador está suspendida. No se puede generar la orden."
+          : "La cuenta del comprador aún no ha sido aprobada. No se puede generar la orden.",
+      });
+      return;
+    }
+
+    if (buyer && Number(buyer.creditLimit) > 0) {
+      const avail = Number(buyer.creditLimit) - (Number(buyer.creditUsed) || 0);
+      if (total > avail) {
+        res.status(400).json({
+          error: `Línea de crédito insuficiente (disponible: $${new Intl.NumberFormat("es-CL").format(Math.round(avail))})`,
+        });
+        return;
+      }
+    }
+
+    const channel = quotation.userType === "chilecompra" ? "chilecompra" : "retail";
+    const orderNumber = generateOrderNumber();
+
+    const order = await db.transaction(async (tx) => {
+      const [orderRow] = await tx
+        .insert(orders)
+        .values({
+          orderNumber,
+          companyId: quotation.companyId,
+          customerId: quotation.customerId,
+          buyerName: buyer?.name ?? quotation.cotizanteName ?? null,
+          buyerEmail: buyer?.email ?? quotation.cotizanteEmail ?? null,
+          buyerRut: buyer?.rut ?? quotation.cotizanteRut ?? null,
+          userId: quotation.userId,
+          quotationId: quotation.id,
+          status: "pending",
+          channel,
+          licitacionCode: quotation.licitacionCode,
+          subtotal: String(subtotal),
+          tax: String(tax),
+          total: String(total),
+          currency: "CLP",
+          paymentMethod: buyer?.paymentTerms ?? null,
+          creditUsed: buyer ? String(total) : "0",
+        })
+        .returning();
+
+      await tx.insert(orderItems).values(
+        orderLines.map((l) => ({
+          orderId: orderRow.id,
+          productId: l.productId,
+          productName: l.productName,
+          productSku: l.productSku,
+          quantity: l.quantity,
+          unitPrice: String(l.unitPrice),
+          totalPrice: String(l.totalPrice),
+        }))
+      );
+
+      for (const l of orderLines) {
+        await tx
+          .update(products)
+          .set({ stock: sql`${products.stock} - ${l.quantity}` })
+          .where(eq(products.id, l.productId));
+      }
+
+      if (buyer) {
+        await tx
+          .update(customers)
+          .set({ creditUsed: String((Number(buyer.creditUsed) || 0) + total) })
+          .where(eq(customers.id, buyer.id));
+      }
+
+      await tx
+        .update(quotations)
+        .set({ status: "converted", updatedAt: new Date() })
+        .where(eq(quotations.id, quotation.id));
+
+      return orderRow;
+    });
+
+    if (quotation.companyId) {
+      await notifyCompanyUsers({
+        companyId: quotation.companyId,
+        title: "Nueva orden de compra recibida",
+        message: `Se convirtió la cotización #${quotation.id} en la orden de compra ${order.orderNumber}.`,
+        referenceId: order.id,
+        referenceType: "order",
+      });
+    }
+    if (quotation.customerId) {
+      await notifyCustomerUsers({
+        customerId: quotation.customerId,
+        title: "Cotización convertida en orden de compra",
+        message: `Tu cotización #${quotation.id} se convirtió en la orden ${order.orderNumber}.`,
+        referenceId: order.id,
+        referenceType: "order",
+      });
+    }
+
+    res.status(201).json({
+      id: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      channel: order.channel,
+      subtotal: order.subtotal,
+      tax: order.tax,
+      total: order.total,
+      createdAt: order.createdAt,
+    });
+  } catch (error) {
+    console.error("POST /quotes/:id/convert error:", error);
+    res.status(500).json({ error: "Error al convertir la cotización en pedido" });
+  }
+});
+
 quotesRouter.get("/stats", requireAuth, requireEmpresa, async (req, res) => {
   try {
     const sellerScope = scopeCompanyId(req.auth);
@@ -267,7 +502,8 @@ quotesRouter.get("/:id", requireAuth, async (req, res) => {
       ? await db.select({ name: companies.name }).from(companies).where(eq(companies.id, quotation.companyId))
       : [];
 
-    res.json({ ...quotation, sellerName: seller?.name ?? null });
+    const [withMeta] = await attachSeller([{ ...quotation }]);
+    res.json({ ...withMeta, sellerName: seller?.name ?? withMeta.sellerName ?? null });
   } catch (error) {
     console.error("GET /quotes/:id error:", error);
     res.status(500).json({ error: "Error al obtener la cotización" });

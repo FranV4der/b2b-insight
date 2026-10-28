@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext.tsx'
 import { useAuth } from '../context/AuthContext.tsx'
+import { formatCLPWithSymbol } from '../utils/format.ts'
 import { LicitacionInfo } from '../components/LicitacionInfo.tsx'
 import { getItemPrice, resolveChannel, type QuoteItem } from '../types/quote.ts'
 import { createOrder, submitQuote, downloadQuotePdf } from '../services/api.ts'
 import { buildWhatsAppLink, buildQuoteWhatsAppMessage } from '../utils/whatsapp.ts'
 import type { CreateOrderResponse } from '../types/order.ts' 
 const TAX_RATE = 0.19
-const PAYMENT_METHODS = ['transferencia', 'credito', 'factura', 'contraentrega'] as const
+
 
 /** Cantidad editable: permite digitar el número directo sin hacer clic una a una. */
 function QtyInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -45,11 +46,13 @@ export function CartView() {
 
   const channel = resolveChannel(customer?.type, userType)
   const purchaseBlocked = customer != null && customer.status !== 'active'
+  const ct = (customer as unknown as { paymentTerms?: string } | null)?.paymentTerms
+  const defaultPaymentMethod = ct === 'contado' ? 'contado' : ct === '30' || ct === '60' || ct === '90' ? 'credito' : 'transferencia'
 
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState<CreateOrderResponse | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [paymentMethod, setPaymentMethod] = useState('')
+  const [paymentMethod] = useState(defaultPaymentMethod)
   const [shippingAddress, setShippingAddress] = useState('')
   const [shippingNotes, setShippingNotes] = useState('')
   const [notes, setNotes] = useState('')
@@ -153,7 +156,7 @@ export function CartView() {
             Número de Orden de Compra: <strong>{submitted.orderNumber}</strong>
           </p>
           <p>
-            Total: ${Number(submitted.total).toLocaleString('es-CL')} (IVA incluido)
+            Total: {formatCLPWithSymbol(submitted.total)} (IVA incluido)
           </p>
           <div className="quote-success-actions">
             <button onClick={() => navigate('orders')}>Ver mis órdenes</button>
@@ -208,7 +211,7 @@ export function CartView() {
                 <span className="quote-item-name">{item.product.name}</span>
                 <span className="quote-item-meta">
                   {item.product.sku && <span className="sku">SKU: {item.product.sku}</span>}
-                  <span className="quote-item-price">${unitPrice.toLocaleString('es-CL')} c/u</span>
+                  <span className="quote-item-price">{formatCLPWithSymbol(unitPrice)} c/u</span>
                 </span>
               </div>
               <div className="quote-item-controls">
@@ -218,7 +221,7 @@ export function CartView() {
                 <button className="remove-btn" onClick={() => removeItem(item.product.id)}>Eliminar</button>
               </div>
               <div className="quote-item-subtotal">
-                ${(unitPrice * item.quantity).toLocaleString('es-CL')}
+                {formatCLPWithSymbol(unitPrice * item.quantity)}
               </div>
             </div>
           )
@@ -236,40 +239,41 @@ export function CartView() {
       {!purchaseBlocked && (
         <div className="order-form">
           <h4>Datos de la Orden de Compra</h4>
-        <div className="form-grid">
-          <div className="form-field">
-            <label htmlFor="order-payment">Método de pago</label>
-            <select id="order-payment" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-              <option value="">Seleccionar...</option>
-              {PAYMENT_METHODS.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          </div>
-          <div className="form-field">
-            <label htmlFor="order-po">OC / Referencia</label>
-            <input id="order-po" value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder="N° de orden de compra" />
-          </div>
-          <div className="form-field form-field-full">
-            <label htmlFor="order-address">Dirección de despacho</label>
-            <input id="order-address" value={shippingAddress} onChange={(e) => setShippingAddress(e.target.value)} placeholder="Dirección de entrega" />
-          </div>
-          <div className="form-field form-field-full">
-            <label htmlFor="order-shipping-notes">Notas de despacho</label>
-            <textarea id="order-shipping-notes" value={shippingNotes} onChange={(e) => setShippingNotes(e.target.value)} rows={2} placeholder="Indicaciones para el despacho" />
-          </div>
-          <div className="form-field form-field-full">
-            <label htmlFor="order-notes">Comentarios</label>
-            <textarea id="order-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Observaciones adicionales" />
+          <p className="muted">N° de OC: Se asignará al confirmar la orden</p>
+          {ct ? (
+            <p><strong>Condición de pago:</strong> {ct === 'contado' ? 'Contado' : `${ct} días`}</p>
+          ) : null}
+          <div className="form-grid">
+            <div className="form-field">
+              <label htmlFor="order-payment">Método de pago</label>
+              <input id="order-payment" value={paymentMethod === 'credito' ? 'Crédito' : paymentMethod === 'contado' ? 'Contado' : paymentMethod === 'factura' ? 'Factura' : paymentMethod === 'transferencia' ? 'Transferencia' : 'Contra entrega'} disabled />
+            </div>
+            <div className="form-field">
+              <label htmlFor="order-po">OC / Referencia</label>
+              <input id="order-po" value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder="Opcional" />
+            </div>
+            <div className="form-field form-field-full">
+              <label htmlFor="order-address">Dirección de despacho</label>
+              <input id="order-address" value={shippingAddress} onChange={(e) => setShippingAddress(e.target.value)} placeholder="Dirección de entrega" />
+            </div>
+            <div className="form-field form-field-full">
+              <label htmlFor="order-shipping-notes">Notas de despacho</label>
+              <textarea id="order-shipping-notes" value={shippingNotes} onChange={(e) => setShippingNotes(e.target.value)} rows={2} placeholder="Indicaciones para el despacho" />
+            </div>
+            <div className="form-field form-field-full">
+              <label htmlFor="order-notes">Comentarios</label>
+              <textarea id="order-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Observaciones adicionales" />
+            </div>
           </div>
         </div>
-      </div>
       )}
 
       <div className="quote-section">
-        <h4>Cotización</h4>
+        <h4>{purchaseBlocked ? 'Solicitar cotización' : 'Cotización'}</h4>
         <p className="muted">
-          Genera una cotización formal (PDF) de este carrito sin comprometer stock.
+          {purchaseBlocked
+            ? 'Tu cuenta aún no está habilitada para comprar. Guarda una cotización y el vendedor podrá convertirla en pedido cuando active tu cuenta.'
+            : 'Genera una cotización formal (PDF) de este carrito sin comprometer stock. Podrás convertirla en orden de compra más adelante.'}
         </p>
         {quoteError && <div className="form-error">{quoteError}</div>}
         {quoteSavedId ? (
@@ -304,15 +308,15 @@ export function CartView() {
       <div className="quote-total">
         <div className="total-breakdown">
           <span>Subtotal (neto)</span>
-          <span>${subtotal.toLocaleString('es-CL')}</span>
+          <span>{formatCLPWithSymbol(subtotal)}</span>
         </div>
-        <div className="total-breakdown">
+        <div className="quote-summary-row">
           <span>IVA (19%)</span>
-          <span>${tax.toLocaleString('es-CL')}</span>
+          <span>{formatCLPWithSymbol(tax)}</span>
         </div>
-        <div className="total-breakdown total-breakdown-final">
-          <strong>Total</strong>
-          <strong>${total.toLocaleString('es-CL')}</strong>
+        <div className="quote-summary-row quote-summary-total">
+          <span>Total (IVA incluido)</span>
+          <strong>{formatCLPWithSymbol(total)}</strong>
         </div>
       </div>
 

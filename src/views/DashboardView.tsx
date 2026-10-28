@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useAuth } from '../context/AuthContext.tsx'
+import { formatCLPWithSymbol } from '../utils/format.ts'
 import { useApp } from '../context/AppContext.tsx'
+import { useAuth } from '../context/AuthContext.tsx'
 import { getQuoteStats } from '../services/api.ts'
 import type { QuoteStats } from '../services/api.ts'
 
@@ -104,7 +105,7 @@ export function DashboardView() {
             </svg>
           </div>
           <div className="metric-content">
-            <span className="metric-value">${(stats?.revenue ?? 0).toLocaleString('es-CL')}</span>
+            <span className="metric-value">{formatCLPWithSymbol(stats?.revenue ?? 0)}</span>
             <span className="metric-label">Ingresos Potenciales</span>
             <span className="metric-detail">cotizaciones válidas</span>
           </div>
@@ -148,7 +149,7 @@ export function DashboardView() {
                     </span>
                   </td>
                   <td>{q.licitacionCode || '-'}</td>
-                  <td>${Number(q.total).toLocaleString('es-CL')}</td>
+                  <td>{formatCLPWithSymbol(q.total)}</td>
                   <td>
                     <span className={`status-badge ${quoteStatusMeta(q.status).cls}`}>
                       {quoteStatusMeta(q.status).label}

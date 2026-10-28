@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { formatCLPWithSymbol } from '../utils/format.ts'
 import { useApp } from '../context/AppContext.tsx'
 import { useAuth } from '../context/AuthContext.tsx'
 import { cancelOrder, downloadOrderPdf, getAdminOrder, getOrder, getProduct, triggerBlobDownload } from '../services/api.ts'
@@ -145,6 +146,7 @@ export function OrderDetailView() {
       <div className="order-meta">
         <p><strong>Fecha:</strong> {new Date(order.createdAt).toLocaleString('es-CL')}</p>
         <p><strong>Canal:</strong> {getChannelLabel(order.channel)}</p>
+        {order.quotationId && <p><strong>Origen:</strong> Cotización #{order.quotationId}</p>}
         {order.licitacionCode && <p><strong>Licitación:</strong> {order.licitacionCode}</p>}
         {order.paymentMethod && <p><strong>Pago:</strong> {order.paymentMethod}</p>}
         {order.poNumber && <p><strong>OC / Referencia:</strong> {order.poNumber}</p>}
@@ -170,8 +172,8 @@ export function OrderDetailView() {
                 <td>{item.productSku || '-'}</td>
                 <td>{item.productName}</td>
                 <td>{item.quantity}</td>
-                <td>${Number(item.unitPrice).toLocaleString('es-CL')}</td>
-                <td>${Number(item.totalPrice).toLocaleString('es-CL')}</td>
+                <td>{formatCLPWithSymbol(item.unitPrice)}</td>
+                <td>{formatCLPWithSymbol(item.totalPrice)}</td>
               </tr>
             ))}
           </tbody>
@@ -181,15 +183,15 @@ export function OrderDetailView() {
       <div className="order-totals">
         <div className="total-breakdown">
           <span>Subtotal</span>
-          <span>${Number(order.subtotal).toLocaleString('es-CL')}</span>
+          <span>{formatCLPWithSymbol(order.subtotal)}</span>
         </div>
-        <div className="total-breakdown">
+        <div className="quote-summary-row">
           <span>IVA (19%)</span>
-          <span>${Number(order.tax).toLocaleString('es-CL')}</span>
+          <span>{formatCLPWithSymbol(order.tax)}</span>
         </div>
-        <div className="total-breakdown total-breakdown-final">
-          <strong>Total</strong>
-          <strong>${Number(order.total).toLocaleString('es-CL')}</strong>
+        <div className="quote-summary-row quote-summary-total">
+          <span>Total</span>
+          <strong>{formatCLPWithSymbol(order.total)}</strong>
         </div>
       </div>
 

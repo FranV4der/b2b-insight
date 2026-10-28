@@ -58,6 +58,7 @@ npm install
 cp .env.example .env     # Configurar DATABASE_URL y JWT_SECRET
 npm run db:push           # Crear/actualizar tablas (sincroniza schema)
 npm run db:migrate-price-lists  # Migración multi-canal de listas de precio (correr ANTES de db:push la primera vez)
+npm run db:migrate-price-list-pending  # Migración "lista = fuente de verdad": pending_sku + product_id nullable (correr ANTES de db:push la primera vez)
 npm run create:admin -- admin@tuempresa.cl <password> "Tu Nombre"
                           # Crea el admin de plataforma (company_id = NULL)
 npm run create:company -- --name "IMEX ESTADO" --rut "84888400-6" \
@@ -114,7 +115,7 @@ Frontend (Vercel)              Backend (Railway)              PostgreSQL (Railwa
 | DELETE | `/api/products/:id` | Eliminar producto |
 | POST | `/api/products/import` | Importar Excel (preview + confirm) |
 | GET | `/api/products/template` | Descargar plantilla Excel |
-| POST | `/api/price-lists/:id/import-prices` | Carga masiva de precios en una lista desde Excel (preview + confirm; matchea por SKU contra productos del mismo vendedor, upsert) |
+| POST | `/api/price-lists/:id/import-prices` | Carga masiva de precios en una lista desde Excel (preview + confirm; matchea por SKU contra productos del mismo vendedor, upsert). Los SKUs sin producto quedan como filas **pendientes** (`pending_sku`) y se enganchan al crear el producto |
 | GET | `/api/price-lists/:id/template` | Descargar plantilla Excel de precios (SKU, Precio, Descuento %, Cantidad Mínima) |
 | POST | `/api/orders` | Crear pedido (valida stock, **límite de crédito** y precios server-side, IVA 19%, comprador active; suma el total a `customers.credit_used`) |
 | GET | `/api/orders` | Listar pedidos del comprador (paginado; `admin` ve todos) |
@@ -139,6 +140,7 @@ Frontend (Vercel)              Backend (Railway)              PostgreSQL (Railwa
 | GET | `/api/quotes` | Listar cotizaciones (paginado; `admin` todas, `empresa` su vendedor, `cotizador` las propias; incluye `sellerName`/`sellerPhone`) |
 | GET | `/api/quotes/:id` | Detalle de cotización (acotado por `quoteScope`) |
 | PUT | `/api/quotes/:id/status` | Cambiar estado de cotización (`pending`/`approved`/`rejected`/`converted`; `empresa`/`admin`) |
+| POST | `/api/quotes/:id/convert` | Convertir cotización en orden de compra (comprador dueño, vendedor o admin). Congela precios de la cotización, valida stock/crédito/comprador activo y validez de 15 días; crea la OC, descuenta stock y marca `converted` |
 | GET | `/api/quotes/:id/pdf` | Descargar PDF de cotización (total + IVA 19%) |
 | GET | `/api/quotes/stats` | Resumen para el dashboard (`empresa`/`admin`) |
 | POST | `/api/uploads/:id/documents` | Subir documento adjunto (PDF ≤ 10MB, campo `files`, tipo=hoja_seguridad/manual/ficha_tecnica/otro) |
@@ -265,11 +267,11 @@ Ambos punteros son **nullable** (`ON DELETE SET NULL`): borrar un vendedor o com
 - `companies` — **vendedor**: `legal_name`, `business_activity`, `commune`, `region`, `contact_name`, `contact_role`, `contact_email`, `contact_phone`, `status` (además de name, slug, rut, address, phone, email, website, logo_url)
 - `customers` — **comprador**: `company_id` nullable (→ `companies`, vendedor que lo atiende), `kind`, `name`, `rut`, `email`, `phone`, `address`, `commune`, `region`, `type`, `creditLimit`, `creditUsed`, `status`, `payment_terms` (`contado`/`30`/`60`/`90`), `billing_address`, `billing_commune`, `billing_region`
 - `price_lists` — listas de precio del vendedor, cada una con `channel` (`retail`/`chilecompra`); una lista por canal por comprador (`customer_price_lists`, tabla N:N con FK cascade)
-- `price_list_items` — precios por producto por lista; índice único `(price_list_id, product_id)`
+- `price_list_items` — precios por producto por lista; `product_id` nullable + `pending_sku`: las filas "pendientes" (producto aún no creado) se enganchan por SKU al crear el producto. Índices únicos `(price_list_id, product_id)` y parcial `(price_list_id, lower(pending_sku))` para pendientes
 - `orders` — `customer_id` (comprador), `company_id` (vendedor) y snapshot inmutable `buyerName`/`buyerEmail`/`buyerRut`
 - `quotations` — `customer_id` (comprador)
 
-**Resolución de precios** (`backend/src/services/pricing.ts`): para el canal activo (`retail` de compra normal, `chilecompra` si hay código de licitación) se usa la lista asignada del comprador (`customer_price_lists`); si no hay lista asignada y el canal es `chilecompra`, cae al MP del vendedor (`price_chilecompra`); si no, precios regulares. Al activar ChileCompra, el frontend valida primero el código de licitación contra la API de Mercado Público (`src/components/Header.tsx`).
+**Resolución de precios** (`backend/src/services/pricing.ts`): para el canal activo (`retail` de compra normal, `chilecompra` si hay código de licitación) se usa la lista asignada del comprador (`customer_price_lists`); si no hay lista asignada y el canal es `chilecompra`, cae al MP del vendedor (`price_chilecompra`). **La lista es la fuente de verdad**: un producto sin precio en la lista del comprador no se muestra en el catálogo ni se puede pedir; el `regular_price` del producto quedó como fallback legacy y ya no se usa. Al activar ChileCompra, el frontend valida primero el código de licitación contra la API de Mercado Público (`src/components/Header.tsx`).
 
 `backend/src/utils/validation.ts` centraliza `slugify`, `EMAIL_RE` y `normalizeRut` (valida el dígito verificador chileno y canonicaliza a `12345678-5`).
 

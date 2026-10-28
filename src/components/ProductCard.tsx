@@ -2,6 +2,7 @@ import type { Product } from '../types/product.ts'
 import { useApp } from '../context/AppContext.tsx'
 import { useAuth } from '../context/AuthContext.tsx'
 import { getItemPrice, getPriceLabel, getPriceWithTax } from '../types/quote.ts'
+import { formatCLPWithSymbol } from '../utils/format.ts'
 
 interface Props {
   product: Product
@@ -50,8 +51,8 @@ export function ProductCard({ product }: Props) {
         <div className="product-price">
           {user ? (
             <>
-              <span className="price">${price.toLocaleString('es-CL')}</span>
-              <span className="price-tax">neto · c/IVA ${getPriceWithTax(price).toLocaleString('es-CL')}</span>
+              <span className="price">{formatCLPWithSymbol(price)}</span>
+              <span className="price-tax">neto · c/IVA {formatCLPWithSymbol(getPriceWithTax(price))}</span>
               {userType && <span className="price-badge">{getPriceLabel(userType)}</span>}
             </>
           ) : (

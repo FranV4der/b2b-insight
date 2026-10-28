@@ -6,6 +6,7 @@ import fs from "fs";
 import path from "path";
 import { requireAuth, requireEmpresa, getAuthFromRequest, scopeCompanyId } from "../middleware/auth.js";
 import { resolvePriceContext } from "../services/pricing.js";
+import { linkPendingPriceItems } from "../services/priceListLink.js";
 
 export const productsRouter = Router();
 
@@ -43,15 +44,39 @@ productsRouter.get("/", async (req, res) => {
       conditions.push(exists(inCategory));
     }
 
-    // Filtros de precio (sobre el precio base de lista, no sobre el asignado
-    // por cliente, que depende del usuario autenticado).
-    const minPrice = Number(req.query.min_price);
-    if (Number.isFinite(minPrice) && String(req.query.min_price ?? "") !== "") {
-      conditions.push(sql`${products.regularPrice} >= ${minPrice}`);
+    // Filtros de precio: se aplican sobre el precio de la lista de precios
+    // asignada (la fuente de verdad). Requieren un contexto de canal resuelto.
+    const resolvedPriceListIds: number[] = [];
+    if (ctx.channel) {
+      if (ctx.priceListId) {
+        resolvedPriceListIds.push(ctx.priceListId);
+      } else if (ctx.channel === "chilecompra") {
+        resolvedPriceListIds.push(...Array.from(ctx.mpPriceListsByProvider.values()));
+      }
     }
+
+    const minPrice = Number(req.query.min_price);
+    const hasMinPrice = Number.isFinite(minPrice) && String(req.query.min_price ?? "") !== "";
     const maxPrice = Number(req.query.max_price);
-    if (Number.isFinite(maxPrice) && String(req.query.max_price ?? "") !== "") {
-      conditions.push(sql`${products.regularPrice} <= ${maxPrice}`);
+    const hasMaxPrice = Number.isFinite(maxPrice) && String(req.query.max_price ?? "") !== "";
+
+    if (resolvedPriceListIds.length) {
+      // Solo se muestran productos que tengan precio en alguna de las listas del
+      // comprador: la lista de precios es la fuente de verdad del catálogo.
+      const priceItemConditions = [
+        inArray(priceListItems.priceListId, resolvedPriceListIds),
+        eq(priceListItems.productId, products.id),
+      ];
+      if (hasMinPrice) {
+        priceItemConditions.push(sql`${priceListItems.price} >= ${minPrice}`);
+      }
+      if (hasMaxPrice) {
+        priceItemConditions.push(sql`${priceListItems.price} <= ${maxPrice}`);
+      }
+      conditions.push(exists(db.select({ one: sql`1` }).from(priceListItems).where(and(...priceItemConditions))));
+    } else if (auth?.customerId) {
+      // Comprador autenticado sin lista asignada: no ve catálogo.
+      conditions.push(sql`false`);
     }
 
     if (req.query.in_stock === "1" || req.query.in_stock === "true") {
@@ -128,7 +153,9 @@ productsRouter.get("/", async (req, res) => {
         .from(priceListItems)
         .where(and(inArray(priceListItems.priceListId, priceListIds), inArray(priceListItems.productId, productIds)));
       for (const p of prices) {
-        priceMap.set(p.productId, { price: p.price, discount: p.discount || "0" });
+        if (p.productId != null) {
+          priceMap.set(p.productId, { price: p.price, discount: p.discount || "0" });
+        }
       }
     }
 
@@ -395,8 +422,8 @@ productsRouter.post("/", requireAuth, requireEmpresa, async (req, res) => {
       featured,
     } = req.body;
 
-    if (!sku || !name || regularPrice === undefined) {
-      res.status(400).json({ error: "sku, name, and regularPrice are required" });
+    if (!sku || !name) {
+      res.status(400).json({ error: "sku y name son requeridos" });
       return;
     }
 
@@ -423,9 +450,11 @@ productsRouter.post("/", requireAuth, requireEmpresa, async (req, res) => {
         name,
         description,
         shortDesc,
-        regularPrice: String(regularPrice),
-        priceChilecompra: priceChilecompra ? String(priceChilecompra) : null,
-        priceConvenioMarco: priceConvenioMarco ? String(priceConvenioMarco) : null,
+        // El precio del producto proviene de su lista de precios asignada.
+        // Las columnas quedan en la BD como fallback legacy, pero ya no se exigen.
+        ...(regularPrice !== undefined && { regularPrice: String(regularPrice) }),
+        ...(priceChilecompra !== undefined && { priceChilecompra: priceChilecompra ? String(priceChilecompra) : null }),
+        ...(priceConvenioMarco !== undefined && { priceConvenioMarco: priceConvenioMarco ? String(priceConvenioMarco) : null }),
         stock: stock || 0,
         status: status || "active",
         ...measures.values,
@@ -444,7 +473,9 @@ productsRouter.post("/", requireAuth, requireEmpresa, async (req, res) => {
       );
     }
 
-    res.status(201).json(product);
+    const linkedPriceItems = await linkPendingPriceItems(product.id, sku);
+
+    res.status(201).json({ ...product, linkedPriceItems });
   } catch (error) {
     console.error("POST /products error:", error);
     res.status(500).json({ error: "Error creating product" });
@@ -531,7 +562,13 @@ productsRouter.put("/:id", requireAuth, requireEmpresa, async (req, res) => {
       }
     }
 
-    res.json(updated);
+    // Si cambió el SKU, enganchar las filas pendientes que ahora coincidan.
+    let linkedPriceItems = 0;
+    if (updated.sku && updated.sku !== existing.sku) {
+      linkedPriceItems = await linkPendingPriceItems(updated.id, updated.sku);
+    }
+
+    res.json({ ...updated, linkedPriceItems });
   } catch (error) {
     console.error("PUT /products/:id error:", error);
     res.status(500).json({ error: "Error updating product" });

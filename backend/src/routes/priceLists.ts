@@ -3,7 +3,7 @@ import multer from "multer";
 import * as XLSX from "xlsx";
 import { db } from "../db/index.js";
 import { priceLists, priceListItems, products } from "../db/schema.js";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, isNull, sql } from "drizzle-orm";
 import { requireAuth, requireEmpresa, isAdminRequest, scopeCompanyId } from "../middleware/auth.js";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -52,6 +52,7 @@ priceListsRouter.get("/:id", async (req, res) => {
         id: priceListItems.id,
         priceListId: priceListItems.priceListId,
         productId: priceListItems.productId,
+        pendingSku: priceListItems.pendingSku,
         price: priceListItems.price,
         discount: priceListItems.discount,
         minQuantity: priceListItems.minQuantity,
@@ -401,7 +402,9 @@ priceListsRouter.post("/:id/import-prices", upload.single("file"), async (req, r
     const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
     const { normalized, errors } = parsePriceRows(rows);
 
-    // Los precios se aplican a productos del MISMO vendedor que la lista.
+    // La lista guarda TODOS los SKUs del Excel: los que existen como producto
+    // del vendedor se enlazan; los demás quedan como filas pendientes
+    // (product_id = null, pending_sku = SKU) hasta que se cree el producto.
     const matchedBySku = new Map<string, { id: number; sku: string; name: string }>();
     if (normalized.length && list.companyId != null) {
       const skus = Array.from(new Set(normalized.map((r) => r.sku)));
@@ -412,12 +415,10 @@ priceListsRouter.post("/:id/import-prices", upload.single("file"), async (req, r
       for (const p of productRows) matchedBySku.set(p.sku, p);
     }
 
-    const unmatchedSkus = Array.from(
-      new Set(normalized.filter((r) => !matchedBySku.has(r.sku)).map((r) => r.sku))
-    );
+    const pendingRows = normalized.filter((r) => !matchedBySku.has(r.sku));
     const validRows = normalized.filter((r) => matchedBySku.has(r.sku));
 
-    if (errors.length && !validRows.length) {
+    if (errors.length && !normalized.length) {
       res.status(400).json({ error: "Errores de validación", details: errors });
       return;
     }
@@ -429,13 +430,15 @@ priceListsRouter.post("/:id/import-prices", upload.single("file"), async (req, r
         status: "preview",
         total_rows: rows.length,
         valid_rows: validRows.length,
-        unmatched_skus: unmatchedSkus,
+        pending_rows: pendingRows.length,
+        unmatched_skus: pendingRows.map((r) => r.sku),
         errors,
-        preview: validRows.slice(0, 10).map((r) => {
-          const p = matchedBySku.get(r.sku)!;
+        preview: normalized.slice(0, 10).map((r) => {
+          const p = matchedBySku.get(r.sku);
           return {
             sku: r.sku,
-            productName: p.name,
+            productName: p?.name ?? null,
+            pending: !p,
             price: r.price,
             discount: r.discount,
             minQuantity: r.minQuantity,
@@ -447,8 +450,10 @@ priceListsRouter.post("/:id/import-prices", upload.single("file"), async (req, r
 
     let inserted = 0;
     let updated = 0;
+    let pending = 0;
     const importErrors: string[] = [];
 
+    // Filas con producto existente: upsert por (price_list_id, product_id).
     for (const r of validRows) {
       const p = matchedBySku.get(r.sku)!;
       try {
@@ -470,6 +475,7 @@ priceListsRouter.post("/:id/import-prices", upload.single("file"), async (req, r
           await db.insert(priceListItems).values({
             priceListId,
             productId: p.id,
+            pendingSku: r.sku,
             price: String(r.price),
             discount: r.discount !== undefined ? String(r.discount) : "0",
             minQuantity: r.minQuantity ?? 1,
@@ -481,11 +487,48 @@ priceListsRouter.post("/:id/import-prices", upload.single("file"), async (req, r
       }
     }
 
+    // Filas sin producto: se guardan como pendientes (match case-insensitive).
+    for (const r of pendingRows) {
+      try {
+        const [existing] = await db
+          .select({ id: priceListItems.id })
+          .from(priceListItems)
+          .where(and(
+            eq(priceListItems.priceListId, priceListId),
+            isNull(priceListItems.productId),
+            sql`lower(${priceListItems.pendingSku}) = lower(${r.sku})`,
+          ));
+        if (existing) {
+          await db
+            .update(priceListItems)
+            .set({
+              price: String(r.price),
+              ...(r.discount !== undefined && { discount: String(r.discount) }),
+              ...(r.minQuantity !== undefined && { minQuantity: r.minQuantity }),
+            })
+            .where(eq(priceListItems.id, existing.id));
+          updated++;
+        } else {
+          await db.insert(priceListItems).values({
+            priceListId,
+            productId: null,
+            pendingSku: r.sku,
+            price: String(r.price),
+            discount: r.discount !== undefined ? String(r.discount) : "0",
+            minQuantity: r.minQuantity ?? 1,
+          });
+          pending++;
+        }
+      } catch (err) {
+        importErrors.push(`SKU ${r.sku}: ${(err as Error).message}`);
+      }
+    }
+
     res.json({
       status: "completed",
       inserted,
       updated,
-      unmatched_skus: unmatchedSkus.length ? unmatchedSkus : undefined,
+      pending,
       errors: importErrors,
     });
   } catch (error) {

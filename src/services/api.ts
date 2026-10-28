@@ -144,7 +144,7 @@ export interface CreateProductData {
   name: string
   description?: string
   shortDesc?: string
-  regularPrice: number
+  regularPrice?: number
   priceChilecompra?: number
   priceConvenioMarco?: number
   stock?: number
@@ -158,16 +158,21 @@ export interface CreateProductData {
   weightKg?: number | null
 }
 
-export async function createProduct(data: CreateProductData): Promise<Product> {
-  return fetchApi<Product>('/products', {
+export interface ProductSaveResult extends Product {
+  /** Filas de listas de precio pendientes enganchadas por SKU al guardar. */
+  linkedPriceItems?: number
+}
+
+export async function createProduct(data: CreateProductData): Promise<ProductSaveResult> {
+  return fetchApi<ProductSaveResult>('/products', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
 }
 
-export async function updateProduct(id: number, data: Partial<CreateProductData>): Promise<Product> {
-  return fetchApi<Product>(`/products/${id}`, {
+export async function updateProduct(id: number, data: Partial<CreateProductData>): Promise<ProductSaveResult> {
+  return fetchApi<ProductSaveResult>(`/products/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -200,6 +205,7 @@ export async function importProducts(file: File, confirm = false): Promise<Impor
 
   const res = await fetch(`${API_BASE}/products/import`, {
     method: 'POST',
+    headers: authHeaders(),
     body: formData,
   })
 
@@ -215,11 +221,13 @@ export interface PriceListImportPreview {
   status: 'preview'
   total_rows: number
   valid_rows: number
+  pending_rows: number
   unmatched_skus: string[]
   errors: string[]
   preview: Array<{
     sku: string
-    productName: string
+    productName: string | null
+    pending: boolean
     price: number
     discount?: number
     minQuantity?: number
@@ -230,7 +238,7 @@ export interface PriceListImportResult {
   status: 'completed'
   inserted: number
   updated: number
-  unmatched_skus?: string[]
+  pending: number
   errors: string[]
 }
 
@@ -245,6 +253,7 @@ export async function importPriceListPrices(
 
   const res = await fetch(`${API_BASE}/price-lists/${priceListId}/import-prices`, {
     method: 'POST',
+    headers: authHeaders(),
     body: formData,
   })
 
@@ -518,6 +527,12 @@ export async function updateQuoteStatus(id: number, status: string): Promise<Quo
   })
 }
 
+export async function convertQuoteToOrder(id: number): Promise<CreateOrderResponse> {
+  return fetchApi<CreateOrderResponse>(`/quotes/${id}/convert`, {
+    method: 'POST',
+  })
+}
+
 export interface QuoteListItem {
   id: number
   userId: number | null
@@ -536,6 +551,10 @@ export interface QuoteListItem {
   status: string
   sellerName: string | null
   sellerPhone: string | null
+  orderId: number | null
+  orderNumber: string | null
+  orderStatus: string | null
+  validUntil: string | null
   createdAt: string
   updatedAt?: string
 }

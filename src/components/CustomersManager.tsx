@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getCustomers, updateCustomer, getPriceLists } from '../services/api.ts'
 import type { CustomerAdminItem } from '../services/api.ts'
+import { formatCLPWithSymbol } from '../utils/format.ts'
 import type { PriceList, CompanyType } from '../types/auth.ts'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -190,7 +191,7 @@ function CustomerRow({
         <td>{customer.rut ?? '-'}</td>
         <td>{CHANNEL_LABELS[customer.type]}</td>
         <td><ListsCell customer={customer} /></td>
-        <td>${customer.creditLimit}</td>
+        <td>{formatCLPWithSymbol(customer.creditLimit)}</td>
         <td>{customer.paymentTerms ? PAYMENT_TERMS_LABELS[customer.paymentTerms] : '-'}</td>
         <td>
           <span className={`badge-${customer.status}`}>{STATUS_LABELS[customer.status] ?? customer.status}</span>

@@ -7,13 +7,16 @@ export interface QuoteItem {
   quantity: number
 }
 
+/**
+ * Precio unitario del ítem, resuelto SIEMPRE desde la lista de precios asignada
+ * (la fuente de verdad). Si el producto no tiene precio de lista, devuelve 0.
+ * El precio ya viene con descuento aplicado desde la lista de precios.
+ */
 export function getItemPrice(item: QuoteItem): number {
   if (item.product.priceListPrice) {
-    const price = Number(item.product.priceListPrice)
-    const discount = Number(item.product.priceListDiscount || 0)
-    return discount > 0 ? Math.round(price * (1 - discount / 100)) : Math.round(price)
+    return Math.round(Number(item.product.priceListPrice))
   }
-  return Math.round(Number(item.product.regularPrice) || 0)
+  return 0
 }
 
 export const TAX_RATE = 0.19
